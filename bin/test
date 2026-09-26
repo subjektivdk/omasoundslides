@@ -1,0 +1,10 @@
+#!/bin/bash
+# Build and run the test suite. Includes one real ffmpeg render (a few seconds).
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+mkdir -p "$root/build/tests"
+cd "$root/build/tests"
+qmake6 "$root/tests/tests.pro"
+make -j"$(nproc)"
+./tst_core "$@"
