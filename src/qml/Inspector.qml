@@ -17,7 +17,7 @@ Rectangle {
     color: "#161618"
     radius: 12
 
-    readonly property int controlWidth: 150
+    readonly property int controlWidth: 176
 
     component FieldLabel: Label {
         color: "#b8b8bc"
@@ -126,27 +126,14 @@ Rectangle {
                             objectName: "imageTransitionBox"
                             Layout.preferredWidth: inspector.controlWidth
                             enabled: inspector.hasItem && !inspector.item.isFirst
-                            value: inspector.hasItem ? inspector.item.transition : "none"
-                            overridden: inspector.hasItem && inspector.item.transitionSet
-                            onChosen: (name) => project.setTransition(inspector.item.index, name)
+                            transition: inspector.hasItem ? inspector.item.transition : "none"
+                            duration: inspector.hasItem ? inspector.item.transitionDuration : 0
+                            overridden: inspector.hasItem && (inspector.item.transitionSet || inspector.item.transitionDurationSet)
+                            onChosen: (transition, duration) => project.setTransitionPreset(inspector.item.index, transition, duration)
                         }
                         ResetButton {
-                            shown: inspector.hasItem && inspector.item.transitionSet
-                            onClicked: project.resetTransition(inspector.item.index)
-                        }
-
-                        FieldLabel { text: "Length (s)" }
-                        NumberField {
-                            Layout.preferredWidth: inspector.controlWidth
-                            enabled: inspector.hasItem && !inspector.item.isFirst && inspector.item.transition !== "none"
-                            step: 0.25
-                            value: inspector.hasItem ? inspector.item.transitionDuration : 0
-                            overridden: inspector.hasItem && inspector.item.transitionDurationSet
-                            onCommitted: (v) => project.setTransitionDuration(inspector.item.index, v)
-                        }
-                        ResetButton {
-                            shown: inspector.hasItem && inspector.item.transitionDurationSet
-                            onClicked: project.resetTransitionDuration(inspector.item.index)
+                            shown: inspector.hasItem && (inspector.item.transitionSet || inspector.item.transitionDurationSet)
+                            onClicked: project.resetTransitionPreset(inspector.item.index)
                         }
                     }
 
@@ -262,17 +249,11 @@ Rectangle {
 
                         FieldLabel { text: "Transition" }
                         TransitionBox {
+                            objectName: "defaultTransitionBox"
                             Layout.preferredWidth: inspector.controlWidth
-                            value: project.defaultTransition
-                            onChosen: (name) => project.defaultTransition = name
-                        }
-
-                        FieldLabel { text: "Length (s)" }
-                        NumberField {
-                            Layout.preferredWidth: inspector.controlWidth
-                            step: 0.25
-                            value: project.defaultTransitionDuration
-                            onCommitted: (v) => project.defaultTransitionDuration = v
+                            transition: project.defaultTransition
+                            duration: project.defaultTransitionDuration
+                            onChosen: (transition, duration) => project.setDefaultTransitionPreset(transition, duration)
                         }
                     }
 

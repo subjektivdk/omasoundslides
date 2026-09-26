@@ -4,37 +4,29 @@
 
 namespace Transitions {
 
+namespace {
+constexpr double Fast = 0.5;
+constexpr double Medium = 1.0;
+constexpr double Slow = 2.0;
+}
+
+const QList<Preset> &presets()
+{
+    static const QList<Preset> list = {
+        {QStringLiteral("cut"), QStringLiteral("Straight cut"), QStringLiteral("none"), 0},
+        {QStringLiteral("crossfade-fast"), QStringLiteral("Crossfade – Fast"), QStringLiteral("fade"), Fast},
+        {QStringLiteral("crossfade-medium"), QStringLiteral("Crossfade – Medium"), QStringLiteral("fade"), Medium},
+        {QStringLiteral("crossfade-slow"), QStringLiteral("Crossfade – Slow"), QStringLiteral("fade"), Slow},
+        {QStringLiteral("fadeout-fast"), QStringLiteral("Fade out/in – Fast"), QStringLiteral("fadeblack"), Fast},
+        {QStringLiteral("fadeout-medium"), QStringLiteral("Fade out/in – Medium"), QStringLiteral("fadeblack"), Medium},
+        {QStringLiteral("fadeout-slow"), QStringLiteral("Fade out/in – Slow"), QStringLiteral("fadeblack"), Slow},
+    };
+    return list;
+}
+
 const QStringList &all()
 {
-    static const QStringList names = {
-        QStringLiteral("none"),
-        QStringLiteral("fade"), QStringLiteral("fadeblack"), QStringLiteral("fadewhite"),
-        QStringLiteral("fadegrays"), QStringLiteral("fadefast"), QStringLiteral("fadeslow"),
-        QStringLiteral("dissolve"), QStringLiteral("distance"), QStringLiteral("pixelize"),
-        QStringLiteral("wipeleft"), QStringLiteral("wiperight"), QStringLiteral("wipeup"),
-        QStringLiteral("wipedown"), QStringLiteral("wipetl"), QStringLiteral("wipetr"),
-        QStringLiteral("wipebl"), QStringLiteral("wipebr"),
-        QStringLiteral("slideleft"), QStringLiteral("slideright"), QStringLiteral("slideup"),
-        QStringLiteral("slidedown"),
-        QStringLiteral("smoothleft"), QStringLiteral("smoothright"), QStringLiteral("smoothup"),
-        QStringLiteral("smoothdown"),
-        QStringLiteral("coverleft"), QStringLiteral("coverright"), QStringLiteral("coverup"),
-        QStringLiteral("coverdown"),
-        QStringLiteral("revealleft"), QStringLiteral("revealright"), QStringLiteral("revealup"),
-        QStringLiteral("revealdown"),
-        QStringLiteral("circlecrop"), QStringLiteral("rectcrop"), QStringLiteral("circleopen"),
-        QStringLiteral("circleclose"), QStringLiteral("radial"),
-        QStringLiteral("vertopen"), QStringLiteral("vertclose"), QStringLiteral("horzopen"),
-        QStringLiteral("horzclose"),
-        QStringLiteral("diagtl"), QStringLiteral("diagtr"), QStringLiteral("diagbl"),
-        QStringLiteral("diagbr"),
-        QStringLiteral("hlslice"), QStringLiteral("hrslice"), QStringLiteral("vuslice"),
-        QStringLiteral("vdslice"),
-        QStringLiteral("hlwind"), QStringLiteral("hrwind"), QStringLiteral("vuwind"),
-        QStringLiteral("vdwind"),
-        QStringLiteral("hblur"), QStringLiteral("squeezeh"), QStringLiteral("squeezev"),
-        QStringLiteral("zoomin"),
-    };
+    static const QStringList names = {QStringLiteral("none"), QStringLiteral("fade"), QStringLiteral("fadeblack")};
     return names;
 }
 

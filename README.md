@@ -22,7 +22,7 @@ omasoundslides projekt.json         # åbn et projekt
 
 - Tilføj billeder og lyd med knapperne, med Ctrl+I og Ctrl+L, eller træk filerne ind i vinduet. Billeder sættes ind efter det valgte billede og sorteres efter filnavn (IMG_9 før IMG_10).
 - **Tidslinjen** har et billedspor, hvor hvert billede er lige så bredt, som det varer (overgangen ses som overlap), og et lydspor med waveform. Klik eller træk på linealen eller lydsporet for at flytte afspilningen. Scroll over et billede eller et talfelt for at ændre varigheden (±0,1 s, Shift ±0,5 s), eller træk i dets højre kant. Ctrl + scroll zoomer.
-- **Afspilning** (Space) spiller lyden og viser billederne med crossfade og fade via sort/hvid. Andre overgange (wipes, slides …) ses kun i den eksporterede video.
+- **Afspilning** (Space) spiller lyden og viser billederne med overgangene, som de bliver i videoen.
 - **Image-fanen:** varighed, overgang ind og overgangens længde for det valgte billede. Farvede værdier er sat på billedet, grå kommer fra projektet, og ↺ nulstiller til projektets standard.
 - **Project-fanen:** projektets navn (bruges som filnavn), standardværdier, "Fit images to the audio" (Soundslides' auto-spaced), fade ind/ud på lyden, opløsning og billeder pr. sekund.
 - Statuslinjen viser videoens og lydens længde og siger til, når de ikke passer.
@@ -97,13 +97,15 @@ Hvis lyden er længere end billederne, bliver den klippet af. Er den kortere, fy
 
 ## Overgange
 
-Alle ffmpeg-`xfade`-navne (`fade`, `fadeblack`, `wipeleft`, `slideleft`, `dissolve` …) plus `none` for et hårdt klip. Soundslides-navne virker også:
+Kun den originale Soundslides' overgange. I vinduet vælges de som ét valg, der sætter både type og længde:
 
-| Soundslides   | her                   |
-|---------------|-----------------------|
-| Crossfade     | `crossfade` = `fade`  |
-| Straight-cut  | `cut` = `none`        |
-| Fade out/in   | `fadeout` = `fadeblack` |
+| Valg                        | `transition`          | `transition_duration` |
+|-----------------------------|-----------------------|-----------------------|
+| Straight cut                | `none` (eller `cut`)  | –                     |
+| Crossfade – Fast/Medium/Slow| `fade` (eller `crossfade`) | 0,5 / 1 / 2 s    |
+| Fade out/in – Fast/Medium/Slow | `fadeblack` (eller `fadeout`) | 0,5 / 1 / 2 s |
+
+Fade out/in går via sort. Andre ffmpeg-overgange (wipes, slides …) afvises. En anden længde kan skrives direkte i projektfilen og vises så som fx "Crossfade – 1.50 s". `omasoundslides transitions` viser listen.
 
 ## Opbygning
 

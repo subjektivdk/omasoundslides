@@ -211,9 +211,17 @@ double ProjectModel::audioDuration() const
     return total;
 }
 
-QStringList ProjectModel::transitionNames() const
+QVariantList ProjectModel::transitionPresets() const
 {
-    return Transitions::all();
+    QVariantList list;
+    for (const Transitions::Preset &p : Transitions::presets())
+        list.append(QVariantMap{
+            {QStringLiteral("id"), p.id},
+            {QStringLiteral("label"), p.label},
+            {QStringLiteral("transition"), p.transition},
+            {QStringLiteral("duration"), p.duration},
+        });
+    return list;
 }
 
 void ProjectModel::setModified(bool modified)
@@ -311,6 +319,39 @@ void ProjectModel::resetTransitionDuration(int index)
     if (!validIndex(index))
         return;
     m_project.slides[index].transitionDuration.reset();
+    edited();
+}
+
+void ProjectModel::setTransitionPreset(int index, const QString &transition, double seconds)
+{
+    const QString canonical = Transitions::canonical(transition);
+    if (!validIndex(index) || canonical.isEmpty())
+        return;
+    m_project.slides[index].transition = canonical;
+    m_project.slides[index].transitionDuration = roundSeconds(seconds);
+    edited();
+}
+
+void ProjectModel::resetTransitionPreset(int index)
+{
+    if (!validIndex(index))
+        return;
+    m_project.slides[index].transition.reset();
+    m_project.slides[index].transitionDuration.reset();
+    edited();
+}
+
+void ProjectModel::setDefaultTransitionPreset(const QString &transition, double seconds)
+{
+    const QString canonical = Transitions::canonical(transition);
+    if (canonical.isEmpty())
+        return;
+    m_project.defaults.transition = canonical;
+    // A cut has no length. Keep the default length, since images that set
+    // only their own transition type borrow it; 0 would turn them into cuts.
+    if (!Transitions::isCut(canonical))
+        m_project.defaults.transitionDuration = roundSeconds(seconds);
+    Q_EMIT defaultsChanged();
     edited();
 }
 

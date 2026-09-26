@@ -34,11 +34,9 @@ function clock(seconds) {
 }
 
 var transitionLabels = {
-    "none": "Cut",
+    "none": "Straight cut",
     "fade": "Crossfade",
-    "fadeblack": "Dip to black",
-    "fadewhite": "Dip to white",
-    "dissolve": "Dissolve"
+    "fadeblack": "Fade out/in"
 };
 
 function transition(name) {

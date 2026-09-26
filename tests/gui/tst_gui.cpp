@@ -148,6 +148,26 @@ private Q_SLOTS:
         QTRY_COMPARE(model->durationOf(0), before + 0.1);
     }
 
+    void transitionDropdownShowsSoundslidesChoices()
+    {
+        ProjectModel *model = m_controller.project();
+        QMetaObject::invokeMethod(m_window, "select", Q_ARG(QVariant, 2));
+        auto *box = m_window->findChild<QQuickItem *>(QStringLiteral("imageTransitionBox"));
+        QVERIFY(box);
+        QCOMPARE(box->property("count").toInt(), 7);
+
+        model->setTransitionPreset(2, QStringLiteral("fadeblack"), 2);
+        QTRY_COMPARE(box->property("displayText").toString(), QStringLiteral("Fade out/in – Slow"));
+        model->setTransitionPreset(2, QStringLiteral("fade"), 1.5); // not a preset length
+        QTRY_COMPARE(box->property("displayText").toString(), QStringLiteral("Crossfade – 1.50 s"));
+
+        // Choosing from the list sets transition and length together.
+        QMetaObject::invokeMethod(box, "activated", Q_ARG(int, 1));
+        QTRY_COMPARE(model->data(model->index(2), ProjectModel::TransitionDurationRole).toDouble(), 0.5);
+        QCOMPARE(box->property("displayText").toString(), QStringLiteral("Crossfade – Fast"));
+        model->resetTransitionPreset(2);
+    }
+
     void arrowsMoveThePlayhead()
     {
         const double before = m_window->property("position").toDouble();

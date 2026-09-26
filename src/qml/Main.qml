@@ -389,12 +389,13 @@ ApplicationWindow {
                         objectName: "previewFrame"
                         readonly property real aspect: project.outputWidth / project.outputHeight
                         readonly property var f: win.frame
-                        readonly property bool dip: f.to >= 0 && (f.transition === "fadeblack" || f.transition === "fadewhite")
+                        // Fade out/in: the first image fades to black, then the next fades in.
+                        readonly property bool dip: f.to >= 0 && f.transition === "fadeblack"
 
                         width: Math.min(parent.width, parent.height * aspect)
                         height: width / aspect
                         anchors.centerIn: parent
-                        color: f.to >= 0 && f.transition === "fadewhite" ? "white" : "black"
+                        color: "black"
                         radius: win.hasImages ? 0 : 12
 
                         component PreviewImage: Image {
@@ -407,8 +408,7 @@ ApplicationWindow {
                             retainWhileLoading: true
                         }
 
-                        // Crossfades are shown as crossfades and dips as dips;
-                        // wipes and slides only render in the export.
+                        // The two images of the frame, mixed like the export mixes them.
                         PreviewImage {
                             source: project.urlOf(frameRect.f.from)
                             opacity: frameRect.dip ? Math.max(0, 1 - 2 * frameRect.f.mix) : 1

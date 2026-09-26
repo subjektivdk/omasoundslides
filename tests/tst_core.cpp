@@ -133,6 +133,12 @@ private Q_SLOTS:
                                    &error));
         QVERIFY(error.contains(QStringLiteral("sparkles")));
 
+        // Only Soundslides' transitions: other ffmpeg ones are refused too.
+        QVERIFY(!Project::fromJson(QJsonDocument::fromJson(
+                                       R"({"images": [{"path": "a.jpg", "transition": "wipeleft"}]})")
+                                       .object(),
+                                   &error));
+
         QVERIFY(!Project::fromJson(
             QJsonDocument::fromJson(R"({"output": {"width": 1001}})").object(), &error));
         QVERIFY(!Project::fromJson(
@@ -145,7 +151,7 @@ private Q_SLOTS:
             "name": "Trav på Jydsk Væddeløbsbane",
             "audio_fade": {"in": 1.5, "out": 4},
             "output": {"width": 1280, "height": 720, "fps": 25},
-            "images": [{"path": "a.jpg", "duration": 2.5}, {"path": "b.jpg", "transition": "wipeleft"}],
+            "images": [{"path": "a.jpg", "duration": 2.5}, {"path": "b.jpg", "transition": "fadeblack"}],
             "audio": ["x.mp3"]
         })");
         QString error;
@@ -159,7 +165,7 @@ private Q_SLOTS:
         QCOMPARE(again->slides.size(), 2);
         QCOMPARE(*again->slides[0].duration, 2.5);
         QVERIFY(!again->slides[1].duration);
-        QCOMPARE(*again->slides[1].transition, QStringLiteral("wipeleft"));
+        QCOMPARE(*again->slides[1].transition, QStringLiteral("fadeblack"));
         QCOMPARE(again->audio, QStringList{QStringLiteral("x.mp3")});
     }
 
@@ -292,6 +298,45 @@ private Q_SLOTS:
 
         // The first image never shows a transition, whatever the default is.
         QCOMPARE(model.data(model.index(0), ProjectModel::TransitionRole).toString(), QStringLiteral("none"));
+    }
+
+    void soundslidesTransitionPresets()
+    {
+        const auto &presets = Transitions::presets();
+        QCOMPARE(presets.size(), 7);
+        QStringList labels;
+        for (const auto &p : presets)
+            labels << QStringLiteral("%1=%2/%3").arg(p.label, p.transition).arg(p.duration);
+        QCOMPARE(labels, (QStringList{
+                             "Straight cut=none/0",
+                             "Crossfade – Fast=fade/0.5", "Crossfade – Medium=fade/1", "Crossfade – Slow=fade/2",
+                             "Fade out/in – Fast=fadeblack/0.5", "Fade out/in – Medium=fadeblack/1",
+                             "Fade out/in – Slow=fadeblack/2"}));
+
+        ProjectModel model;
+        model.addImages({QStringLiteral("/a.jpg"), QStringLiteral("/b.jpg")});
+        model.setTransitionPreset(1, QStringLiteral("fadeblack"), 2);
+        QCOMPARE(model.data(model.index(1), ProjectModel::TransitionRole).toString(), QStringLiteral("fadeblack"));
+        QCOMPARE(model.data(model.index(1), ProjectModel::TransitionDurationRole).toDouble(), 2.0);
+        QCOMPARE(model.videoDuration(), 5 + 5 - 2.0);
+        model.resetTransitionPreset(1);
+        QVERIFY(!model.data(model.index(1), ProjectModel::TransitionSetRole).toBool());
+        QVERIFY(!model.data(model.index(1), ProjectModel::TransitionDurationSetRole).toBool());
+
+        model.setDefaultTransitionPreset(QStringLiteral("fade"), 0.5);
+        QCOMPARE(model.defaultTransition(), QStringLiteral("fade"));
+        QCOMPARE(model.defaultTransitionDuration(), 0.5);
+        // A cut as the default must not take the length from images that
+        // set only their own transition type.
+        model.setTransitionPreset(1, QStringLiteral("fade"), 1);
+        model.resetTransitionDuration(1); // "transition": "fade", length from the project
+        model.setDefaultTransitionPreset(QStringLiteral("none"), 0);
+        QCOMPARE(model.defaultTransitionDuration(), 0.5);
+        QCOMPARE(model.data(model.index(1), ProjectModel::TransitionRole).toString(), QStringLiteral("fade"));
+        QCOMPARE(model.videoDuration(), 5 + 5 - 0.5);
+
+        model.setTransitionPreset(1, QStringLiteral("wipeleft"), 1); // not ours: ignored
+        QCOMPARE(model.data(model.index(1), ProjectModel::TransitionRole).toString(), QStringLiteral("fade"));
     }
 
     void modelFitsImagesToTheAudio()

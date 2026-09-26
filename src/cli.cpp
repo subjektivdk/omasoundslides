@@ -183,8 +183,12 @@ int runCli(int argc, char *argv[])
     const QString command = args.value(0);
 
     if (command == QLatin1String("transitions")) {
-        for (const QString &name : Transitions::all())
-            out() << name << Qt::endl;
+        for (const Transitions::Preset &p : Transitions::presets())
+            out() << QStringLiteral("%1  transition=%2  length=%3 s")
+                         .arg(p.label, -22)
+                         .arg(p.transition, -9)
+                         .arg(p.duration, 0, 'f', 1)
+                  << Qt::endl;
         return 0;
     }
 

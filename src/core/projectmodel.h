@@ -30,7 +30,8 @@ class ProjectModel : public QAbstractListModel
     Q_PROPERTY(double videoDuration READ videoDuration NOTIFY timingChanged)
     Q_PROPERTY(QStringList problems READ problems NOTIFY timingChanged)
     Q_PROPERTY(bool modified READ isModified NOTIFY modifiedChanged)
-    Q_PROPERTY(QStringList transitionNames READ transitionNames CONSTANT)
+    // [{ id, label, transition, duration }]: Soundslides' seven choices
+    Q_PROPERTY(QVariantList transitionPresets READ transitionPresets CONSTANT)
 
 public:
     enum Role {
@@ -86,7 +87,7 @@ public:
     double audioDuration() const;
     double videoDuration() const { return m_plan.total; }
     QStringList problems() const { return m_problems; }
-    QStringList transitionNames() const;
+    QVariantList transitionPresets() const;
 
     bool isModified() const { return m_modified; }
     void setModified(bool modified);
@@ -102,6 +103,10 @@ public:
     Q_INVOKABLE void resetTransition(int index);
     Q_INVOKABLE void setTransitionDuration(int index, double seconds);
     Q_INVOKABLE void resetTransitionDuration(int index);
+    // A preset sets the transition and its length together, as one edit.
+    Q_INVOKABLE void setTransitionPreset(int index, const QString &transition, double seconds);
+    Q_INVOKABLE void resetTransitionPreset(int index);
+    Q_INVOKABLE void setDefaultTransitionPreset(const QString &transition, double seconds);
 
     Q_INVOKABLE void addAudio(const QStringList &paths);
     Q_INVOKABLE void removeAudio(int index);
