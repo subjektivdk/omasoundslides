@@ -1,0 +1,246 @@
+// Drives the real window offscreen: keys and mouse wheel as a user sends them.
+
+#include "app/controller.h"
+#include "app/theme.h"
+#include "app/waveformitem.h"
+#include "core/keybindings.h"
+
+#include <QElapsedTimer>
+#include <QProcess>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickItem>
+#include <QQuickStyle>
+#include <QQuickWindow>
+#include <QTemporaryDir>
+#include <QtTest>
+
+namespace {
+
+bool runFfmpeg(const QStringList &args)
+{
+    QProcess p;
+    p.start(QStringLiteral("ffmpeg"),
+            QStringList{QStringLiteral("-hide_banner"), QStringLiteral("-v"), QStringLiteral("error"),
+                        QStringLiteral("-y")}
+                + args);
+    return p.waitForFinished(30000) && p.exitCode() == 0;
+}
+
+void wheel(QQuickWindow *window, QPointF scenePos, int steps, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+{
+    QWheelEvent event(scenePos, window->mapToGlobal(scenePos), QPoint(), QPoint(0, 120 * steps),
+                      Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(window, &event);
+}
+
+QPointF centerOf(QQuickItem *item)
+{
+    return item->mapToScene(QPointF(item->width() / 2, item->height() / 2));
+}
+
+}
+
+class TestGui : public QObject
+{
+    Q_OBJECT
+
+private Q_SLOTS:
+    void initTestCase()
+    {
+        QVERIFY(m_dir.isValid());
+        auto file = [&](const QString &name) { return m_dir.filePath(name); };
+        for (const char *color : {"red", "green", "blue"})
+            QVERIFY(runFfmpeg({"-f", "lavfi", "-i", QStringLiteral("color=c=%1:s=320x200").arg(color),
+                               "-frames:v", "1", file(QStringLiteral("%1.png").arg(color))}));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "sine=duration=20", file("lyd.wav")}));
+        QFile project(file("show.json"));
+        QVERIFY(project.open(QIODevice::WriteOnly));
+        project.write(R"({"images": ["red.png", "green.png", "blue.png"], "audio": ["lyd.wav"]})");
+        project.close();
+
+        qmlRegisterType<WaveformItem>("Omasoundslides", 1, 0, "Waveform");
+        qmlRegisterUncreatableType<AudioPreview>("Omasoundslides", 1, 0, "AudioPreview", QString());
+        QQuickStyle::setStyle(QStringLiteral("Material"));
+
+        m_keys = new KeyBindings(file("keybindings.conf"), this);
+        m_engine.rootContext()->setContextProperty(QStringLiteral("theme"), &m_theme);
+        m_engine.rootContext()->setContextProperty(QStringLiteral("app"), &m_controller);
+        m_engine.rootContext()->setContextProperty(QStringLiteral("project"), m_controller.project());
+        m_engine.rootContext()->setContextProperty(QStringLiteral("audioPreview"), m_controller.audio());
+        m_engine.rootContext()->setContextProperty(QStringLiteral("keys"), m_keys);
+        m_engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
+        QVERIFY(!m_engine.rootObjects().isEmpty());
+        m_window = qobject_cast<QQuickWindow *>(m_engine.rootObjects().first());
+        QVERIFY(m_window);
+        QVERIFY(m_controller.openProject(file("show.json")));
+        m_window->show();
+        m_window->requestActivate();
+        QVERIFY(QTest::qWaitForWindowExposed(m_window));
+        QTRY_VERIFY(m_controller.audio()->ready());
+    }
+
+    void spaceStartsAndStopsPlayback()
+    {
+        QVERIFY(!m_window->property("playing").toBool());
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QTRY_VERIFY(m_window->property("playing").toBool());
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QTRY_VERIFY(!m_window->property("playing").toBool());
+    }
+
+    void spaceWorksAfterUsingAComboBox()
+    {
+        auto *combo = m_window->findChild<QQuickItem *>(QStringLiteral("imageTransitionBox"));
+        QVERIFY(combo);
+        combo->forceActiveFocus();
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QTRY_VERIFY(m_window->property("playing").toBool());
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QTRY_VERIFY(!m_window->property("playing").toBool());
+    }
+
+    void spaceWorksWhileANumberFieldHasFocus()
+    {
+        auto *field = m_window->findChild<QQuickItem *>(QStringLiteral("imageDurationField"));
+        QVERIFY(field);
+        field->forceActiveFocus();
+        QVERIFY(field->hasActiveFocus());
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QTRY_VERIFY(m_window->property("playing").toBool());
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QTRY_VERIFY(!m_window->property("playing").toBool());
+    }
+
+    void clickingThePreviewReleasesTheNameField()
+    {
+        auto *name = m_window->findChild<QQuickItem *>(QStringLiteral("projectNameField"));
+        QVERIFY(name);
+        name->forceActiveFocus();
+        QVERIFY(name->hasActiveFocus());
+        // In the name field Space types a space instead of playing.
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QVERIFY(!m_window->property("playing").toBool());
+
+        auto *preview = m_window->findChild<QQuickItem *>(QStringLiteral("previewFrame"));
+        QTest::mouseClick(m_window, Qt::LeftButton, {}, centerOf(preview).toPoint());
+        QTRY_VERIFY(!name->hasActiveFocus());
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QTRY_VERIFY(m_window->property("playing").toBool());
+        QTest::keyClick(m_window, Qt::Key_Space);
+        QTRY_VERIFY(!m_window->property("playing").toBool());
+    }
+
+    void smoothScrollingAddsUp()
+    {
+        // A smooth-scrolling wheel or touchpad: eight events of 15 = one notch.
+        ProjectModel *model = m_controller.project();
+        auto *timeline = m_window->findChild<QQuickItem *>(QStringLiteral("timeline"));
+        QVariant result;
+        QVERIFY(QMetaObject::invokeMethod(timeline, "blockAt", Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, 0)));
+        auto *block = result.value<QQuickItem *>();
+        const double before = model->durationOf(0);
+        for (int i = 0; i < 8; ++i) {
+            QWheelEvent event(centerOf(block), m_window->mapToGlobal(centerOf(block)), QPoint(0, 2),
+                              QPoint(0, 15), Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false);
+            QCoreApplication::sendEvent(m_window, &event);
+        }
+        QTRY_COMPARE(model->durationOf(0), before + 0.1);
+    }
+
+    void arrowsMoveThePlayhead()
+    {
+        const double before = m_window->property("position").toDouble();
+        QTest::keyClick(m_window, Qt::Key_Right);
+        QTRY_COMPARE(m_window->property("position").toDouble(), before + 1);
+    }
+
+    void wheelOverAnImageChangesItsDuration()
+    {
+        ProjectModel *model = m_controller.project();
+        auto *timeline = m_window->findChild<QQuickItem *>(QStringLiteral("timeline"));
+        QVERIFY(timeline);
+        QVariant result;
+        QVERIFY(QMetaObject::invokeMethod(timeline, "blockAt", Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, 1)));
+        auto *block = result.value<QQuickItem *>();
+        QVERIFY(block);
+
+        const double before = model->durationOf(1);
+        wheel(m_window, centerOf(block), 1);
+        QTRY_COMPARE(model->durationOf(1), before + 0.1);
+        wheel(m_window, centerOf(block), -2, Qt::ShiftModifier);
+        QTRY_COMPARE(model->durationOf(1), before + 0.1 - 1.0);
+    }
+
+    void wheelOverTheDurationFieldChangesIt()
+    {
+        ProjectModel *model = m_controller.project();
+        auto *field = m_window->findChild<QQuickItem *>(QStringLiteral("imageDurationField"));
+        QVERIFY(field);
+        const int selected = m_window->property("selected").toInt();
+        const double before = model->durationOf(selected);
+        wheel(m_window, centerOf(field), 3);
+        QTRY_COMPARE(model->durationOf(selected), before + 0.3);
+    }
+
+    void previewShowsTheCrossfade()
+    {
+        ProjectModel *model = m_controller.project();
+        // Halfway through the 1 s crossfade from red (image 1) into green (image 2).
+        const double t = model->startOf(1) + 0.5;
+        QMetaObject::invokeMethod(m_window, "seek", Q_ARG(QVariant, t));
+        QTRY_COMPARE(m_window->property("position").toDouble(), t);
+        QTest::qWait(300);
+
+        auto *preview = m_window->findChild<QQuickItem *>(QStringLiteral("previewFrame"));
+        QVERIFY(preview);
+        const QImage shot = m_window->grabWindow();
+        const QPointF c = centerOf(preview) * m_window->devicePixelRatio();
+        const QColor color = shot.pixelColor(c.toPoint());
+        qInfo() << "mid-transition pixel" << color.name();
+        QVERIFY2(color.red() > 60 && color.green() > 60, qPrintable(color.name()));
+    }
+
+    void previewShowsTheCrossfadeWhilePlaying()
+    {
+        ProjectModel *model = m_controller.project();
+        const double transitionStart = model->startOf(2); // green → blue
+        QMetaObject::invokeMethod(m_window, "seek", Q_ARG(QVariant, transitionStart - 0.3));
+        QMetaObject::invokeMethod(m_window, "play");
+        auto *preview = m_window->findChild<QQuickItem *>(QStringLiteral("previewFrame"));
+        QStringList seen;
+        bool mixed = false;
+        QElapsedTimer timer;
+        timer.start();
+        while (timer.elapsed() < 1800) {
+            QTest::qWait(50);
+            const QImage shot = m_window->grabWindow();
+            const QColor color = shot.pixelColor((centerOf(preview) * m_window->devicePixelRatio()).toPoint());
+            const double pos = m_window->property("position").toDouble();
+            seen << QStringLiteral("%1:%2").arg(pos - transitionStart, 0, 'f', 2).arg(color.name());
+            if (color.green() > 20 && color.blue() > 20)
+                mixed = true;
+        }
+        QMetaObject::invokeMethod(m_window, "pause");
+        qInfo() << seen.join(QLatin1Char(' '));
+        QVERIFY2(mixed, "never saw green and blue mixed while playing");
+    }
+
+private:
+    QTemporaryDir m_dir;
+    Theme m_theme;
+    Controller m_controller;
+    KeyBindings *m_keys = nullptr;
+    QQmlApplicationEngine m_engine;
+    QQuickWindow *m_window = nullptr;
+};
+
+int main(int argc, char *argv[])
+{
+    qputenv("QT_QPA_PLATFORM", "offscreen");
+    QGuiApplication app(argc, argv);
+    TestGui test;
+    return QTest::qExec(&test, argc, argv);
+}
+
+#include "tst_gui.moc"

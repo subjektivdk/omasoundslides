@@ -20,9 +20,9 @@ PreparedJob prepareJob(const Project &project, const QString &outputPath, bool a
     for (int i = 0; i < p.job.slides.size(); ++i) {
         const MediaInfo info = Probe::inspect(p.job.slides.at(i).path);
         if (!info.ok)
-            p.errors << QStringLiteral("Billede %1: %2").arg(i + 1).arg(info.error);
+            p.errors << QStringLiteral("Image %1: %2").arg(i + 1).arg(info.error);
         else if (!info.hasVideo)
-            p.errors << QStringLiteral("Billede %1: %2 er ikke et billede")
+            p.errors << QStringLiteral("Image %1: %2 is not an image")
                             .arg(i + 1)
                             .arg(p.job.slides.at(i).path);
     }
@@ -31,11 +31,11 @@ PreparedJob prepareJob(const Project &project, const QString &outputPath, bool a
         const QString path = project.resolvePath(relative);
         const MediaInfo info = Probe::inspect(path);
         if (!info.ok) {
-            p.errors << QStringLiteral("Lyd: %1").arg(info.error);
+            p.errors << QStringLiteral("Audio: %1").arg(info.error);
             continue;
         }
         if (!info.hasAudio) {
-            p.errors << QStringLiteral("Lyd: %1 indeholder ikke noget lydspor").arg(path);
+            p.errors << QStringLiteral("Audio: %1 has no audio stream").arg(path);
             continue;
         }
         p.job.audioPaths << path;
@@ -44,7 +44,7 @@ PreparedJob prepareJob(const Project &project, const QString &outputPath, bool a
 
     if (autoSpaced) {
         if (project.audio.isEmpty())
-            p.errors << QStringLiteral("--auto kræver mindst én lydfil");
+            p.errors << QStringLiteral("--auto needs at least one audio file");
         else if (p.audioSeconds > 0) {
             const double d = Timeline::autoDuration(p.job.slides, p.audioSeconds);
             for (ResolvedSlide &s : p.job.slides)
@@ -52,27 +52,31 @@ PreparedJob prepareJob(const Project &project, const QString &outputPath, bool a
         }
     }
 
+    p.job.audioSeconds = p.audioSeconds;
+    p.job.audioFadeIn = project.audioFadeIn;
+    p.job.audioFadeOut = project.audioFadeOut;
+
     p.errors << Timeline::validate(p.job.slides);
     p.job.plan = Timeline::plan(p.job.slides);
 
     if (p.job.slides.size() > RecommendedMaxImages)
-        p.warnings << QStringLiteral("%1 billeder er mange. Over %2 kan ffmpeg bruge meget hukommelse")
+        p.warnings << QStringLiteral("%1 images is a lot. Above %2, ffmpeg may use a lot of memory")
                           .arg(p.job.slides.size())
                           .arg(RecommendedMaxImages);
 
     if (!p.job.audioPaths.isEmpty() && p.errors.isEmpty()) {
         const double diff = p.job.plan.total - p.audioSeconds;
         if (diff > 0.05)
-            p.warnings << QStringLiteral("Billederne varer %1 s længere end lyden. "
-                                         "Der bliver stilhed til sidst")
+            p.warnings << QStringLiteral("The images last %1 s longer than the audio. "
+                                         "The end will be silent")
                               .arg(diff, 0, 'f', 2);
         else if (diff < -0.05)
-            p.warnings << QStringLiteral("Lyden varer %1 s længere end billederne. "
-                                         "Lyden bliver klippet af")
+            p.warnings << QStringLiteral("The audio lasts %1 s longer than the images. "
+                                         "It will be cut off")
                               .arg(-diff, 0, 'f', 2);
     }
     if (p.job.audioPaths.isEmpty() && project.audio.isEmpty())
-        p.warnings << QStringLiteral("Ingen lyd i projektet. Videoen bliver uden lyd");
+        p.warnings << QStringLiteral("No audio in the project. The video will be silent");
 
     return p;
 }

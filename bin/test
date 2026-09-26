@@ -1,10 +1,18 @@
 #!/bin/bash
-# Build and run the test suite. Includes one real ffmpeg render (a few seconds).
+# Build and run the tests: the engine (includes real ffmpeg renders) and the
+# window, driven offscreen with real key presses and mouse wheel events.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 mkdir -p "$root/build/tests"
 cd "$root/build/tests"
 qmake6 "$root/tests/tests.pro"
 make -j"$(nproc)"
 ./tst_core "$@"
+
+mkdir -p "$root/build/gui-tests"
+cd "$root/build/gui-tests"
+qmake6 "$root/tests/gui/tst_gui.pro"
+make -j"$(nproc)"
+QT_QPA_PLATFORM=offscreen ./tst_gui "$@"

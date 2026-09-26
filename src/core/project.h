@@ -29,14 +29,24 @@ struct Defaults {
 };
 
 struct Project {
+    QString name; // optional; the file name is used when empty
     OutputSettings output;
     Defaults defaults;
     QList<Slide> slides;
     QStringList audio;
+    // Fades on the joined audio, in seconds; 0 = none. The fade-out ends
+    // where the audio ends in the video.
+    double audioFadeIn = 0;
+    double audioFadeOut = 0;
     // Directory that relative paths in the project file are resolved against.
     QString baseDir;
 
     QString resolvePath(const QString &path) const;
+
+    // The GUI works with absolute paths; the file on disk stores them relative
+    // to the project file so a project folder can be moved or shared.
+    Project withAbsolutePaths() const;
+    Project withPathsRelativeTo(const QString &dir) const;
 
     static std::optional<Project> fromJson(const QJsonObject &json, QString *error);
     QJsonObject toJson() const;

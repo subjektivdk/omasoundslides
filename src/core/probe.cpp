@@ -12,7 +12,7 @@ MediaInfo inspect(const QString &path)
 {
     MediaInfo info;
     if (!QFileInfo(path).isFile()) {
-        info.error = QStringLiteral("Filen findes ikke: %1").arg(path);
+        info.error = QStringLiteral("File not found: %1").arg(path);
         return info;
     }
 
@@ -23,13 +23,13 @@ MediaInfo inspect(const QString &path)
                    QStringLiteral("format=duration:stream=codec_type,width,height"),
                    QStringLiteral("-of"), QStringLiteral("json"), path});
     if (!ffprobe.waitForStarted()) {
-        info.error = QStringLiteral("Kunne ikke starte ffprobe. Er ffmpeg installeret?");
+        info.error = QStringLiteral("Could not start ffprobe. Is ffmpeg installed?");
         return info;
     }
     ffprobe.waitForFinished(30000);
     if (ffprobe.exitStatus() != QProcess::NormalExit || ffprobe.exitCode() != 0) {
         const QString detail = QString::fromUtf8(ffprobe.readAllStandardError()).trimmed();
-        info.error = QStringLiteral("ffprobe kan ikke læse %1%2")
+        info.error = QStringLiteral("ffprobe cannot read %1%2")
                          .arg(path, detail.isEmpty() ? QString() : QStringLiteral(": ") + detail);
         return info;
     }

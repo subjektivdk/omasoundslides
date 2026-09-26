@@ -18,7 +18,7 @@ Renderer::Renderer(QObject *parent)
     connect(&m_process, &QProcess::finished, this, &Renderer::handleFinished);
     connect(&m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
         if (e == QProcess::FailedToStart)
-            emit finished(false, QStringLiteral("Kunne ikke starte ffmpeg. Er det installeret?"));
+            emit finished(false, QStringLiteral("Could not start ffmpeg. Is it installed?"));
     });
 }
 
@@ -69,12 +69,12 @@ void Renderer::readProgress()
 void Renderer::handleFinished(int exitCode, QProcess::ExitStatus status)
 {
     if (m_cancelled) {
-        emit finished(false, QStringLiteral("Eksporten blev afbrudt"));
+        emit finished(false, QStringLiteral("Export cancelled"));
         return;
     }
     if (status != QProcess::NormalExit || exitCode != 0) {
         const QString detail = QString::fromUtf8(m_stderrTail).trimmed();
-        emit finished(false, QStringLiteral("ffmpeg fejlede (kode %1)%2")
+        emit finished(false, QStringLiteral("ffmpeg failed (code %1)%2")
                                  .arg(exitCode)
                                  .arg(detail.isEmpty() ? QString() : QStringLiteral(":\n") + detail));
         return;

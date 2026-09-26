@@ -2,6 +2,8 @@
 
 #include <QRegularExpression>
 
+#include <algorithm>
+
 namespace {
 
 QString seconds(double s)
@@ -17,6 +19,27 @@ QString normalizeFilter(const OutputSettings &o)
                           "pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black,"
                           "setsar=1,fps=%3,format=yuv420p")
         .arg(w, h, QString::number(o.fps));
+}
+
+// "afade=…,afade=…," or "". The fade-out ends where the audio stops being
+// heard: its own end, or the end of the video when that comes first.
+QString audioFades(const RenderJob &job)
+{
+    const double end = job.audioSeconds > 0 ? std::min(job.audioSeconds, job.plan.total) : job.plan.total;
+    double in = std::max(0.0, job.audioFadeIn);
+    double out = std::max(0.0, job.audioFadeOut);
+    if (in + out > end && in + out > 0) {
+        // Too long for the audio: shrink both, keeping their proportions.
+        const double scale = end / (in + out);
+        in *= scale;
+        out *= scale;
+    }
+    QString filters;
+    if (in > 0)
+        filters += QStringLiteral("afade=t=in:st=0:d=%1,").arg(seconds(in));
+    if (out > 0)
+        filters += QStringLiteral("afade=t=out:st=%1:d=%2,").arg(seconds(end - out), seconds(out));
+    return filters;
 }
 
 }
@@ -76,13 +99,14 @@ QString filterGraph(const RenderJob &job)
                           .arg(k);
             inputs += QStringLiteral("[a%1]").arg(k);
         }
-        // apad fills with silence if the audio is shorter than the pictures;
-        // the output -t cuts it if it is longer.
+        // Fades, then apad fills with silence if the audio is shorter than
+        // the pictures; the output -t cuts it if it is longer.
+        const QString tail = audioFades(job) + QStringLiteral("apad[aout]");
         if (job.audioPaths.size() == 1)
-            chains << QStringLiteral("[a0]apad[aout]");
+            chains << QStringLiteral("[a0]") + tail;
         else
-            chains << QStringLiteral("%1concat=n=%2:v=0:a=1,apad[aout]")
-                          .arg(inputs, QString::number(job.audioPaths.size()));
+            chains << QStringLiteral("%1concat=n=%2:v=0:a=1,%3")
+                          .arg(inputs, QString::number(job.audioPaths.size()), tail);
     }
 
     return chains.join(QStringLiteral(";\n"));

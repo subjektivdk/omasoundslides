@@ -28,7 +28,7 @@ QStringList validate(const QList<ResolvedSlide> &slides)
 {
     QStringList problems;
     if (slides.isEmpty())
-        problems << QStringLiteral("Projektet har ingen billeder");
+        problems << QStringLiteral("The project has no images");
 
     for (int i = 0; i < slides.size(); ++i) {
         const ResolvedSlide &s = slides.at(i);
@@ -37,16 +37,16 @@ QStringList validate(const QList<ResolvedSlide> &slides)
         const int n = i + 1;
 
         if (s.duration <= 0)
-            problems << QStringLiteral("Billede %1: varigheden skal være større end 0").arg(n);
+            problems << QStringLiteral("Image %1: the duration must be greater than 0").arg(n);
         else if (in + out > s.duration + 1e-9)
-            problems << QStringLiteral("Billede %1: overgangene ind (%2 s) og ud (%3 s) er tilsammen "
-                                       "længere end billedets varighed (%4 s)")
+            problems << QStringLiteral("Image %1: the transitions in (%2 s) and out (%3 s) are longer "
+                                       "together than the image lasts (%4 s)")
                             .arg(n)
                             .arg(in)
                             .arg(out)
                             .arg(s.duration);
         if (in > 60)
-            problems << QStringLiteral("Billede %1: overgangen må højst vare 60 s").arg(n);
+            problems << QStringLiteral("Image %1: a transition can last 60 s at most").arg(n);
     }
     return problems;
 }

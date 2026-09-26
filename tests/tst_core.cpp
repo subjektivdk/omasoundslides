@@ -1,11 +1,17 @@
+#include "app/controller.h"
+#include "core/audiopreview.h"
 #include "core/ffmpegcommand.h"
+#include "core/keybindings.h"
 #include "core/prepare.h"
 #include "core/probe.h"
 #include "core/project.h"
+#include "core/projectmodel.h"
 #include "core/renderer.h"
 #include "core/timeline.h"
 #include "core/transitions.h"
 
+#include <QAbstractItemModelTester>
+#include <QDir>
 #include <QJsonDocument>
 #include <QProcess>
 #include <QSignalSpy>
@@ -93,7 +99,7 @@ private Q_SLOTS:
         const QList<ResolvedSlide> slides = {slide(3), slide(2, "fade", 1), slide(3, "fade", 1.5)};
         const QStringList problems = Timeline::validate(slides);
         QCOMPARE(problems.size(), 1);
-        QVERIFY(problems.first().startsWith(QStringLiteral("Billede 2")));
+        QVERIFY(problems.first().startsWith(QStringLiteral("Image 2")));
         QVERIFY(Timeline::validate({slide(3), slide(2, "fade", 1), slide(3, "fade", 1)}).isEmpty());
     }
 
@@ -136,6 +142,8 @@ private Q_SLOTS:
     void jsonRoundTrip()
     {
         const Project p = projectFromJson(R"({
+            "name": "Trav på Jydsk Væddeløbsbane",
+            "audio_fade": {"in": 1.5, "out": 4},
             "output": {"width": 1280, "height": 720, "fps": 25},
             "images": [{"path": "a.jpg", "duration": 2.5}, {"path": "b.jpg", "transition": "wipeleft"}],
             "audio": ["x.mp3"]
@@ -143,6 +151,9 @@ private Q_SLOTS:
         QString error;
         const auto again = Project::fromJson(p.toJson(), &error);
         QVERIFY(again);
+        QCOMPARE(again->name, QStringLiteral("Trav på Jydsk Væddeløbsbane"));
+        QCOMPARE(again->audioFadeIn, 1.5);
+        QCOMPARE(again->audioFadeOut, 4.0);
         QCOMPARE(again->output.width, 1280);
         QCOMPARE(again->output.fps, 25);
         QCOMPARE(again->slides.size(), 2);
@@ -187,12 +198,290 @@ private Q_SLOTS:
         QVERIFY(graph.contains(QStringLiteral("[x1][x3]concat=n=2:v=1:a=0[vout]")));
     }
 
+    void audioFadesAreAppliedWhereTheAudioEnds()
+    {
+        RenderJob job;
+        job.slides = {slide(5), slide(5, "fade", 1)};
+        job.plan = Timeline::plan(job.slides); // 9 s of pictures
+        job.audioPaths = {QStringLiteral("/lyd.mp3")};
+        job.audioSeconds = 20; // longer than the video: fade out at the video's end
+        job.audioFadeIn = 2;
+        job.audioFadeOut = 3;
+        QVERIFY(FfmpegCommand::filterGraph(job).contains(
+            QStringLiteral("[a0]afade=t=in:st=0:d=2.000,afade=t=out:st=6.000:d=3.000,apad[aout]")));
+
+        job.audioSeconds = 7; // shorter than the video: fade out at the audio's end
+        QVERIFY(FfmpegCommand::filterGraph(job).contains(QStringLiteral("afade=t=out:st=4.000:d=3.000")));
+
+        job.audioFadeIn = 0;
+        job.audioFadeOut = 0;
+        QVERIFY(!FfmpegCommand::filterGraph(job).contains(QStringLiteral("afade")));
+    }
+
     void singleImageNeedsNoTransitions()
     {
         RenderJob job;
         job.slides = {slide(4)};
         job.plan = Timeline::plan(job.slides);
         QVERIFY(FfmpegCommand::filterGraph(job).endsWith(QStringLiteral("[vout]")));
+    }
+
+    void pathsAreStoredRelativeToTheProjectFile()
+    {
+        Project p;
+        p.slides = {Slide{QStringLiteral("/home/me/show/img/01.jpg"), {}, {}, {}}};
+        p.audio = {QStringLiteral("/home/me/lyd/interview.mp3")};
+        const Project onDisk = p.withPathsRelativeTo(QStringLiteral("/home/me/show"));
+        QCOMPARE(onDisk.slides[0].path, QStringLiteral("img/01.jpg"));
+        QCOMPARE(onDisk.audio[0], QStringLiteral("../lyd/interview.mp3"));
+
+        const Project back = onDisk.withAbsolutePaths();
+        QCOMPARE(back.slides[0].path, QStringLiteral("/home/me/show/img/01.jpg"));
+        QCOMPARE(back.audio[0], QStringLiteral("/home/me/lyd/interview.mp3"));
+    }
+
+    void modelKeepsTheTimelineInStep()
+    {
+        ProjectModel model;
+        QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+        QVERIFY(!model.isModified());
+        model.addImages({QStringLiteral("/a.jpg"), QStringLiteral("/b.jpg"), QStringLiteral("/c.jpg")});
+        QVERIFY(model.isModified());
+        QCOMPARE(model.rowCount(), 3);
+        QCOMPARE(model.videoDuration(), 13.0); // defaults: 5 s, 1 s fade
+
+        model.addImages({QStringLiteral("/x.jpg")}, 1);
+        auto name = [&](int row) { return model.data(model.index(row), ProjectModel::FileNameRole).toString(); };
+        QCOMPARE(name(1), QStringLiteral("x.jpg"));
+
+        model.moveImage(1, 3);
+        QCOMPARE(name(3), QStringLiteral("x.jpg"));
+        QCOMPARE(name(1), QStringLiteral("b.jpg"));
+        model.moveImage(3, 0);
+        QCOMPARE(name(0), QStringLiteral("x.jpg"));
+
+        model.removeImage(0);
+        QCOMPARE(model.rowCount(), 3);
+        QCOMPARE(model.startOf(2), 8.0);
+    }
+
+    void modelOverridesAndDefaults()
+    {
+        ProjectModel model;
+        model.addImages({QStringLiteral("/a.jpg"), QStringLiteral("/b.jpg"), QStringLiteral("/c.jpg")});
+
+        model.setDuration(0, 7.004);
+        QCOMPARE(model.durationOf(0), 7.0); // rounded to hundredths
+        QVERIFY(model.data(model.index(0), ProjectModel::DurationSetRole).toBool());
+        QCOMPARE(model.startOf(1), 6.0);
+
+        model.setDefaultDuration(4);
+        QCOMPARE(model.durationOf(0), 7.0); // still overridden
+        QCOMPARE(model.durationOf(1), 4.0);
+        model.resetDuration(0);
+        QCOMPARE(model.durationOf(0), 4.0);
+
+        model.setTransition(2, QStringLiteral("cut"));
+        QCOMPARE(model.data(model.index(2), ProjectModel::TransitionRole).toString(), QStringLiteral("none"));
+        QCOMPARE(model.videoDuration(), 4 + 4 + 4 - 1.0);
+
+        model.setTransitionDuration(1, 5);
+        QVERIFY(!model.problems().isEmpty()); // 5 s fade into a 4 s image
+        model.resetTransitionDuration(1);
+        QVERIFY(model.problems().isEmpty());
+
+        // The first image never shows a transition, whatever the default is.
+        QCOMPARE(model.data(model.index(0), ProjectModel::TransitionRole).toString(), QStringLiteral("none"));
+    }
+
+    void modelFitsImagesToTheAudio()
+    {
+        if (!haveFfmpeg())
+            QSKIP("ffmpeg/ffprobe er ikke installeret");
+        QTemporaryDir dir;
+        const QString audio = dir.filePath(QStringLiteral("a.wav"));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "sine=duration=20", audio}));
+
+        ProjectModel model;
+        QVERIFY(!model.fitToAudio()); // nothing to fit yet
+        model.addImages({QStringLiteral("/a.jpg"), QStringLiteral("/b.jpg"), QStringLiteral("/c.jpg"),
+                         QStringLiteral("/d.jpg")});
+        model.addAudio({audio});
+        QVERIFY(qAbs(model.audioDuration() - 20) < 0.05);
+
+        model.setDuration(2, 9);
+        QCOMPARE(model.durationOverrideCount(), 1);
+        QVERIFY(model.fitToAudio());
+        QCOMPARE(model.durationOverrideCount(), 0);
+        QCOMPARE(model.defaultDuration(), 5.75); // (20 + 3 × 1) / 4
+
+        // Fades as the playback volume sees them: 2 s in, 4 s out, audio 20 s.
+        model.setAudioFadeIn(2);
+        model.setAudioFadeOut(4);
+        QCOMPARE(model.audioGainAt(0), 0.0);
+        QCOMPARE(model.audioGainAt(1), 0.5);
+        QCOMPARE(model.audioGainAt(10), 1.0);
+        QVERIFY(qAbs(model.audioGainAt(model.audioDuration() - 1) - 0.25) < 0.02);
+        QVERIFY(model.videoDuration() <= model.audioDuration() + 0.001);
+        QVERIFY(model.audioDuration() - model.videoDuration() < 0.05);
+    }
+
+    void modelLoadsAndSavesWithRelativePaths()
+    {
+        QTemporaryDir dir;
+        QDir(dir.path()).mkdir(QStringLiteral("img"));
+        ProjectModel model;
+        model.addImages({dir.filePath(QStringLiteral("img/01.jpg"))});
+        model.setDuration(0, 3);
+
+        const QString file = dir.filePath(QStringLiteral("show.json"));
+        QString error;
+        QVERIFY(model.project().withPathsRelativeTo(dir.path()).save(file, &error));
+
+        const auto loaded = Project::load(file, &error);
+        QVERIFY2(loaded, qPrintable(error));
+        QCOMPARE(loaded->slides[0].path, QStringLiteral("img/01.jpg"));
+
+        ProjectModel reopened;
+        reopened.setProject(*loaded);
+        QVERIFY(!reopened.isModified());
+        QCOMPARE(reopened.data(reopened.index(0), ProjectModel::PathRole).toString(),
+                 dir.filePath(QStringLiteral("img/01.jpg")));
+        QCOMPARE(reopened.durationOf(0), 3.0);
+    }
+
+    void controllerSavesOpensAndExports()
+    {
+        if (!haveFfmpeg())
+            QSKIP("ffmpeg/ffprobe er ikke installeret");
+        QTemporaryDir dir;
+        auto file = [&](const QString &name) { return dir.filePath(name); };
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "color=c=red:s=300x200", "-frames:v", "1", file("1.jpg")}));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "color=c=blue:s=300x200", "-frames:v", "1", file("2.jpg")}));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "sine=duration=3", file("lyd.wav")}));
+
+        Controller controller;
+        QSignalSpy notices(&controller, &Controller::notice);
+        // Dropped files are sorted into images and audio by extension.
+        controller.addDroppedUrls({QUrl::fromLocalFile(file("2.jpg")), QUrl::fromLocalFile(file("lyd.wav")),
+                                   QUrl::fromLocalFile(file("1.jpg")), QUrl::fromLocalFile(file("x.txt"))});
+        ProjectModel *model = controller.project();
+        QCOMPARE(model->rowCount(), 2);
+        QCOMPARE(model->data(model->index(0), ProjectModel::FileNameRole).toString(), QStringLiteral("1.jpg"));
+        QCOMPARE(model->audio().size(), 1);
+        QVERIFY(notices.last().at(0).toString().contains(QStringLiteral("x.txt")));
+
+        model->setResolution(320, 180);
+        model->setFps(10);
+        QVERIFY(model->fitToAudio());
+        QVERIFY(controller.saveTo(file("show.json")));
+        QVERIFY(!model->isModified());
+        QCOMPARE(controller.projectName(), QStringLiteral("show"));
+
+        Controller reopened;
+        QVERIFY(reopened.openProject(file("show.json")));
+        QCOMPARE(reopened.project()->rowCount(), 2);
+        QCOMPARE(reopened.project()->outputWidth(), 320);
+
+        QSignalSpy exported(&reopened, &Controller::exportFinished);
+        reopened.exportTo(file("ud.mp4"));
+        QVERIFY(reopened.exporting());
+        QVERIFY(exported.wait(60000));
+        QVERIFY(!reopened.exporting());
+        QVERIFY(QFileInfo::exists(file("ud.mp4")));
+        QVERIFY(!QFileInfo::exists(file(".ud.part.mp4")));
+        const MediaInfo info = Probe::inspect(file("ud.mp4"));
+        QVERIFY(qAbs(info.duration - 3) < 0.15);
+    }
+
+    void frameAtFollowsTheTransitions()
+    {
+        ProjectModel model;
+        model.addImages({QStringLiteral("/a.jpg"), QStringLiteral("/b.jpg"), QStringLiteral("/c.jpg")});
+        // starts 0, 4, 8; each 5 s with a 1 s fade into b and c
+        auto frame = [&](double t) { return model.frameAt(t); };
+        QCOMPARE(frame(2).value("from").toInt(), 0);
+        QCOMPARE(frame(2).value("to").toInt(), -1);
+        QCOMPARE(frame(4.25).value("to").toInt(), 1);
+        QCOMPARE(frame(4.25).value("mix").toDouble(), 0.25);
+        QCOMPARE(frame(4.25).value("current").toInt(), 0);
+        QCOMPARE(frame(4.75).value("current").toInt(), 1);
+        QCOMPARE(frame(6).value("from").toInt(), 1);
+        QCOMPARE(frame(100).value("from").toInt(), 2);
+        QCOMPARE(model.visibleStartOf(1), 5.0);
+        QCOMPARE(model.frameAt(model.visibleStartOf(2)).value("current").toInt(), 2);
+
+        model.setTransition(1, QStringLiteral("cut"));
+        QCOMPARE(frame(4.25).value("to").toInt(), -1);
+    }
+
+    void keyBindingsParse()
+    {
+        const auto parsed = KeyBindings::parse(QStringLiteral(
+            "# a comment\n"
+            "play_pause = Space K   # trailing comment\n"
+            "seek_back =\n"
+            "duration_scroll_step = 0,25\n"
+            "frobnicate = F1\n"
+            "nonsense\n"));
+        QCOMPARE(parsed.keys.value(QStringLiteral("play_pause")), (QStringList{"Space", "K"}));
+        QVERIFY(parsed.keys.contains(QStringLiteral("seek_back")));
+        QVERIFY(parsed.keys.value(QStringLiteral("seek_back")).isEmpty()); // switched off
+        QCOMPARE(parsed.settings.value(QStringLiteral("duration_scroll_step")), 0.25);
+        QCOMPARE(parsed.warnings.size(), 2);
+
+        // The file we write for new users must parse back to the defaults.
+        const auto defaults = KeyBindings::parse(KeyBindings::defaultFileText());
+        QVERIFY2(defaults.warnings.isEmpty(), qPrintable(defaults.warnings.join('\n')));
+        for (const auto &action : KeyBindings::defaults())
+            QCOMPARE(defaults.keys.value(action.id), action.keys);
+    }
+
+    void keyBindingsFileIsCreatedAndReloaded()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("sub/keybindings.conf"));
+        KeyBindings keys(path);
+        QVERIFY(QFileInfo::exists(path));
+        QCOMPARE(keys.keys().value(QStringLiteral("play_pause")).toStringList(), QStringList{"Space"});
+        QCOMPARE(keys.scrollStep(), 0.1);
+
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        file.write("play_pause = P\nduration_step = 1\n");
+        file.close();
+        keys.reload();
+        QCOMPARE(keys.keys().value(QStringLiteral("play_pause")).toStringList(), QStringList{"P"});
+        QCOMPARE(keys.keys().value(QStringLiteral("seek_back")).toStringList(), QStringList{"Left"});
+        QCOMPARE(keys.durationStep(), 1.0);
+    }
+
+    void audioPreviewJoinsFilesAndMeasuresPeaks()
+    {
+        if (!haveFfmpeg())
+            QSKIP("ffmpeg/ffprobe er ikke installeret");
+        QTemporaryDir dir;
+        const QString a = dir.filePath(QStringLiteral("a.wav"));
+        const QString b = dir.filePath(QStringLiteral("b.mp3"));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "sine=frequency=440:duration=2", a}));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "anullsrc=r=22050:cl=mono", "-t", "1.5", b}));
+
+        const auto result = AudioPreview::build({a, b}, dir.path());
+        QVERIFY2(result.error.isEmpty(), qPrintable(result.error));
+        QVERIFY(QFileInfo::exists(result.file));
+        QVERIFY(qAbs(result.duration - 3.5) < 0.1);
+        QVERIFY(qAbs(result.peaks.size() - 350) < 10);
+        // Loud sine first, silence after.
+        QVERIFY(result.peaks.at(50) > 0.5);
+        QVERIFY(result.peaks.at(300) < 0.01);
+        for (float p : result.peaks)
+            QVERIFY(p >= 0 && p <= 1);
+
+        // Cached: the second build reuses the joined file.
+        const QDateTime before = QFileInfo(result.file).lastModified();
+        const auto again = AudioPreview::build({a, b}, dir.path());
+        QCOMPARE(again.file, result.file);
+        QCOMPARE(QFileInfo(again.file).lastModified(), before);
     }
 
     void rendersARealVideo()

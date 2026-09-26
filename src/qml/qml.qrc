@@ -1,0 +1,11 @@
+<RCC>
+    <qresource prefix="/qml">
+        <file>Main.qml</file>
+        <file>AccentButton.qml</file>
+        <file>Inspector.qml</file>
+        <file>NumberField.qml</file>
+        <file>Timeline.qml</file>
+        <file>TransitionBox.qml</file>
+        <file>Format.js</file>
+    </qresource>
+</RCC>

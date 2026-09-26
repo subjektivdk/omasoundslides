@@ -11,6 +11,9 @@ struct RenderJob {
     TimelinePlan plan;
     OutputSettings output;
     QStringList audioPaths; // absolute, played back to back
+    double audioSeconds = 0; // their combined length
+    double audioFadeIn = 0;
+    double audioFadeOut = 0;
     QString outputPath;
 };
 
