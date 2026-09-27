@@ -19,7 +19,8 @@ class AudioPreview : public QObject
     Q_PROPERTY(double duration READ duration NOTIFY changed)
 
 public:
-    static constexpr int PeaksPerSecond = 100;
+    // Fine enough that the waveform stays smooth at the timeline's deepest zoom.
+    static constexpr int PeaksPerSecond = 400;
 
     struct Result {
         QString file;

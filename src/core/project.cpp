@@ -8,6 +8,8 @@
 #include <QJsonDocument>
 #include <QSaveFile>
 
+#include <algorithm>
+
 namespace {
 
 bool readPositiveInt(const QJsonObject &obj, const char *key, int *out, QString *error)
@@ -144,6 +146,14 @@ std::optional<Project> Project::fromJson(const QJsonObject &json, QString *error
     if (!ok)
         return std::nullopt;
 
+    for (const QJsonValue &m : json.value(QLatin1String("markers")).toArray()) {
+        if (!m.isDouble() || m.toDouble() < 0) {
+            *error = QStringLiteral("markers must be a list of seconds ≥ 0");
+            return std::nullopt;
+        }
+        p.markers.append(m.toDouble());
+    }
+
     const QJsonValue audio = json.value(QLatin1String("audio"));
     const QJsonArray audioList = audio.isString() ? QJsonArray{audio} : audio.toArray();
     for (const QJsonValue &a : audioList) {
@@ -187,6 +197,14 @@ QJsonObject Project::toJson() const
     };
     if (!name.isEmpty())
         json.insert(QStringLiteral("name"), name);
+    if (!markers.isEmpty()) {
+        QList<double> sorted = markers;
+        std::sort(sorted.begin(), sorted.end());
+        QJsonArray list;
+        for (double m : sorted)
+            list.append(m);
+        json.insert(QStringLiteral("markers"), list);
+    }
     if (audioFadeIn > 0 || audioFadeOut > 0)
         json.insert(QStringLiteral("audio_fade"),
                     QJsonObject{{QStringLiteral("in"), audioFadeIn}, {QStringLiteral("out"), audioFadeOut}});

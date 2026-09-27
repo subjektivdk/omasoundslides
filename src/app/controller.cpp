@@ -106,6 +106,7 @@ bool Controller::openProject(const QString &path)
     }
     m_model.setProject(*project);
     setProjectPath(QFileInfo(path).absoluteFilePath());
+    Q_EMIT projectOpened();
     Q_EMIT notice(QStringLiteral("Opened %1").arg(QFileInfo(path).fileName()));
     return true;
 }
@@ -114,6 +115,7 @@ void Controller::newProject()
 {
     m_model.setProject(Project{});
     setProjectPath({});
+    Q_EMIT projectOpened();
 }
 
 void Controller::save()

@@ -1,7 +1,7 @@
 TEMPLATE = app
 TARGET = tst_core
 
-QT = core testlib dbus concurrent
+QT = core gui testlib dbus concurrent
 CONFIG += c++17 console testcase warn_on
 CONFIG -= app_bundle
 

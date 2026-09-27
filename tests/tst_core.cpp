@@ -339,6 +339,106 @@ private Q_SLOTS:
         QCOMPARE(model.data(model.index(1), ProjectModel::TransitionRole).toString(), QStringLiteral("fade"));
     }
 
+    void undoAndRedo()
+    {
+        ProjectModel model;
+        QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+        QVERIFY(!model.canUndo());
+        model.addImages({QStringLiteral("/a.jpg"), QStringLiteral("/b.jpg"), QStringLiteral("/c.jpg")});
+        model.setModified(false); // "saved"
+        QVERIFY(!model.isModified());
+
+        // A burst of changes to one image (a mouse wheel) is one undo step.
+        for (int i = 1; i <= 5; ++i)
+            model.setDuration(1, 5 + i * 0.1);
+        QCOMPARE(model.durationOf(1), 5.5);
+        QVERIFY(model.isModified());
+        model.undo();
+        QCOMPARE(model.durationOf(1), 5.0);
+        QVERIFY(!model.isModified()); // back where it was saved
+        model.redo();
+        QCOMPARE(model.durationOf(1), 5.5);
+
+        model.moveImage(0, 2);
+        QCOMPARE(model.data(model.index(2), ProjectModel::FileNameRole).toString(), QStringLiteral("a.jpg"));
+        model.removeImage(0);
+        QCOMPARE(model.rowCount(), 2);
+        QCOMPARE(model.undoText(), QStringLiteral("Remove image"));
+        model.undo();
+        QCOMPARE(model.rowCount(), 3);
+        model.undo();
+        QCOMPARE(model.data(model.index(0), ProjectModel::FileNameRole).toString(), QStringLiteral("a.jpg"));
+
+        model.setName(QStringLiteral("Show"));
+        model.setAudioFadeIn(2);
+        model.undo();
+        model.undo();
+        QCOMPARE(model.name(), QString());
+        QCOMPARE(model.audioFadeIn(), 0.0);
+
+        // Opening a project starts a new history.
+        model.setProject(Project{});
+        QVERIFY(!model.canUndo());
+        QVERIFY(!model.isModified());
+    }
+
+    void markers()
+    {
+        ProjectModel model;
+        QCOMPARE(model.addMarker(4), 0);
+        QCOMPARE(model.addMarker(10), 1);
+        QCOMPARE(model.addMarker(1.5), 2);
+        QCOMPARE(model.addMarker(10.02), -1); // same cue
+        QCOMPARE(model.markerAfter(4), 10.0);
+        QCOMPARE(model.markerBefore(4), 1.5);
+        QCOMPARE(model.markerAfter(10), -1.0);
+
+        QVERIFY(!model.removeMarkerNear(7, 0.5));
+        QVERIFY(model.removeMarkerNear(9.8, 0.5));
+        QCOMPARE(model.markers().size(), 2);
+        model.undo();
+        QCOMPARE(model.markers().size(), 3);
+
+        model.moveMarker(2, 2);
+        model.moveMarker(2, 2.5); // one drag, one undo step
+        model.undo();
+        QCOMPARE(model.markers().at(2).toDouble(), 1.5);
+
+        // Saved sorted; read back.
+        QString error;
+        const auto again = Project::fromJson(model.project().toJson(), &error);
+        QVERIFY(again);
+        QCOMPARE(again->markers, (QList<double>{1.5, 4, 10}));
+    }
+
+    void fitToMarkersPutsEachChangeOnItsMarker()
+    {
+        ProjectModel model;
+        model.addImages({QStringLiteral("/a.jpg"), QStringLiteral("/b.jpg"), QStringLiteral("/c.jpg")});
+        QCOMPARE(model.fitToMarkers(), 0); // no markers
+        model.addMarker(10);
+        model.addMarker(4); // order of setting doesn't matter
+        QCOMPARE(model.fitToMarkers(), 2);
+
+        // Crossfades of 1 s are centred on the markers.
+        QCOMPARE(model.startOf(1), 3.5);
+        QCOMPARE(model.startOf(2), 9.5);
+        QCOMPARE(model.frameAt(4).value("mix").toDouble(), 0.5);
+        QCOMPARE(model.frameAt(10).value("mix").toDouble(), 0.5);
+        QCOMPARE(model.durationOf(2), 5.0); // no audio: the last keeps its duration
+
+        // A cut changes exactly on the marker.
+        model.setTransitionPreset(1, QStringLiteral("none"), 0);
+        model.fitToMarkers();
+        QCOMPARE(model.startOf(1), 4.0);
+
+        model.undo();
+        model.undo();
+        QCOMPARE(model.startOf(1), 3.5);
+        model.undo();
+        QCOMPARE(model.startOf(1), 4.0); // before the first fit: 5 − 1
+    }
+
     void modelFitsImagesToTheAudio()
     {
         if (!haveFfmpeg())
@@ -367,6 +467,13 @@ private Q_SLOTS:
         QCOMPARE(model.audioGainAt(1), 0.5);
         QCOMPARE(model.audioGainAt(10), 1.0);
         QVERIFY(qAbs(model.audioGainAt(model.audioDuration() - 1) - 0.25) < 0.02);
+
+        // With a marker for every change, the last image lasts until the audio ends.
+        model.addMarker(3);
+        model.addMarker(8);
+        model.addMarker(14);
+        QCOMPARE(model.fitToMarkers(), 3);
+        QVERIFY(qAbs(model.videoDuration() - model.audioDuration()) < 0.002);
         QVERIFY(model.videoDuration() <= model.audioDuration() + 0.001);
         QVERIFY(model.audioDuration() - model.videoDuration() < 0.05);
     }
@@ -515,10 +622,10 @@ private Q_SLOTS:
         QVERIFY2(result.error.isEmpty(), qPrintable(result.error));
         QVERIFY(QFileInfo::exists(result.file));
         QVERIFY(qAbs(result.duration - 3.5) < 0.1);
-        QVERIFY(qAbs(result.peaks.size() - 350) < 10);
+        QVERIFY(qAbs(result.peaks.size() - 3.5 * AudioPreview::PeaksPerSecond) < 40);
         // Loud sine first, silence after.
-        QVERIFY(result.peaks.at(50) > 0.5);
-        QVERIFY(result.peaks.at(300) < 0.01);
+        QVERIFY(result.peaks.at(AudioPreview::PeaksPerSecond / 2) > 0.5);
+        QVERIFY(result.peaks.at(3 * AudioPreview::PeaksPerSecond) < 0.01);
         for (float p : result.peaks)
             QVERIFY(p >= 0 && p <= 1);
 

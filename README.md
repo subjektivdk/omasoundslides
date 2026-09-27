@@ -21,7 +21,11 @@ omasoundslides projekt.json         # åbn et projekt
 ```
 
 - Tilføj billeder og lyd med knapperne, med Ctrl+I og Ctrl+L, eller træk filerne ind i vinduet. Billeder sættes ind efter det valgte billede og sorteres efter filnavn (IMG_9 før IMG_10).
-- **Tidslinjen** har et billedspor, hvor hvert billede er lige så bredt, som det varer (overgangen ses som overlap), og et lydspor med waveform. Klik eller træk på linealen eller lydsporet for at flytte afspilningen. Scroll over et billede eller et talfelt for at ændre varigheden (±0,1 s, Shift ±0,5 s), eller træk i dets højre kant. Ctrl + scroll zoomer.
+- **Tidslinjen** har et billedspor, hvor hvert billede er lige så bredt, som det varer (overgangen ses som overlap), og et lydspor med waveform. Klik eller træk på linealen eller lydsporet for at flytte afspilningen. Scroll over et billede eller et talfelt for at ændre varigheden (±0,1 s, Shift ±0,5 s), eller træk i dets højre kant. Kanten snapper til playhead, markører, lydens slutning og de foregående billeder (hold Shift for at placere frit), og den nye varighed vises undervejs. Ctrl + scroll zoomer.
+- **Overgange** tegnes i billedsporet: en skrå linje for crossfade og et V for fade out/in. Klik på dem for at vælge en anden.
+- **Fade ind/ud på lyden:** Træk de små firkanter i lydsporets hjørner. Lyd efter videoens slutning vises dæmpet, fordi den bliver klippet af.
+- **Markører** (Soundslides' præcise timing): Tryk **M**, mens lyden spiller, hvor hvert billede skal skifte. "Fit images to markers" (Ctrl+M) lægger hvert skift på sin markør. Ved crossfade ligger midten af overgangen på markøren, og har alle skift en markør, varer det sidste billede til lyden slutter. `,`/`.` hopper mellem markører, Shift+M fjerner den nærmeste. På tidslinjen kan du trække i flaget eller dobbeltklikke for at fjerne.
+- **Fortryd/gentag** (Ctrl+Z / Ctrl+Shift+Z) virker for alle ændringer i projektet. Et helt træk eller en række hak med musehjulet fortrydes i ét trin.
 - **Afspilning** (Space) spiller lyden og viser billederne med overgangene, som de bliver i videoen.
 - **Image-fanen:** varighed, overgang ind og overgangens længde for det valgte billede. Farvede værdier er sat på billedet, grå kommer fra projektet, og ↺ nulstiller til projektets standard.
 - **Project-fanen:** projektets navn (bruges som filnavn), standardværdier, "Fit images to the audio" (Soundslides' auto-spaced), fade ind/ud på lyden, opløsning og billeder pr. sekund.
@@ -69,7 +73,8 @@ omasoundslides transitions                           # liste over overgange
     {"path": "04.jpg", "transition": "cut"}
   ],
   "audio": ["intro.wav", "interview.mp3"],
-  "audio_fade": {"in": 2.0, "out": 4.0}
+  "audio_fade": {"in": 2.0, "out": 4.0},
+  "markers": [12.4, 31.0, 47.25]
 }
 ```
 

@@ -13,8 +13,8 @@
 
 namespace {
 
-// Low sample rate is plenty for peaks: 4000 Hz = 40 samples per peak.
-constexpr int WaveformRate = 4000;
+// A low sample rate is plenty for peaks: 8000 Hz = 20 samples per peak.
+constexpr int WaveformRate = 8000;
 
 QString cacheKey(const QStringList &paths)
 {

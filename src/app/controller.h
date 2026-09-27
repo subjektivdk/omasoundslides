@@ -60,6 +60,8 @@ Q_SIGNALS:
     // One-line messages for the status bar.
     void notice(const QString &text);
     void exportFinished(const QString &path);
+    // A project was opened or a new one started: the window resets its view.
+    void projectOpened();
     void saved();
 
 private:

@@ -1,14 +1,22 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
+import QtQuick.Shapes
 import Omasoundslides
 import "Format.js" as Format
 
 // Two tracks on one time axis: the images (each as wide as it lasts, the
-// next one overlapping it by its transition) and the audio waveform. Click
-// or drag on the ruler or the audio to move the playhead; click an image to
-// select it; scroll over an image to change its duration; drag its right
-// edge to set the duration by hand; Ctrl + scroll zooms.
+// next one overlapping it by its transition) and the audio waveform, with
+// markers across both.
+//
+// - Click or drag on the ruler or the audio: move the playhead.
+// - Click an image: select it. Scroll over it, or drag its right edge, to
+//   change its duration; the edge snaps to the playhead, markers, the audio
+//   end and the images before it (hold Shift to place it freely).
+// - Click a transition: choose another one.
+// - Drag the small squares on the audio: fade in / fade out.
+// - Drag a marker's flag to move it, double-click it to remove it.
+// - Scroll to pan, Ctrl + scroll to zoom.
 Rectangle {
     id: tl
 
@@ -22,6 +30,15 @@ Rectangle {
     readonly property real visibleSeconds: area.width / pps
     readonly property real minPps: area.width / length
     readonly property real maxPps: 400
+    // How close (in pixels) an edge must come to a snap point to jump to it.
+    readonly property real snapPixels: 8
+    readonly property color markerColor: "#e8b04a"
+
+    // Shown while an edge is being snapped, in seconds; -1 when not snapping.
+    property real snapLine: -1
+    // The duration feedback shown while dragging or scrolling an image.
+    property int feedbackIndex: -1
+    property real feedbackFrom: 0
 
     signal seekRequested(real seconds)
     signal imageClicked(int index)
@@ -58,11 +75,53 @@ Rectangle {
     function secondsAt(x) {
         return Math.max(0, viewStart + x / pps);
     }
+    function xOf(seconds) {
+        return (seconds - viewStart) * pps;
+    }
     // Leftover wheel movement between events (see Format.wheelNotches).
     property real wheelRemainder: 0
     function wheelSteps(event) {
         var d = event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x;
         return d / 120;
+    }
+
+    // The nearest snap point to `seconds` within snapPixels, or `seconds`
+    // itself. Only things that stay put while image `index` changes count:
+    // the playhead, markers, the audio end and the images before it.
+    function snapTime(seconds, index) {
+        var best = seconds;
+        var bestDistance = snapPixels / pps;
+        function consider(candidate) {
+            var distance = Math.abs(candidate - seconds);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        consider(position);
+        for (var m = 0; m < project.markers.length; ++m)
+            consider(project.markers[m]);
+        if (audioPreview.ready)
+            consider(audioPreview.duration);
+        for (var i = 0; i < index; ++i) {
+            consider(project.startOf(i));
+            consider(project.startOf(i) + project.durationOf(i));
+        }
+        consider(project.startOf(index));
+        return best;
+    }
+
+    function showFeedback(index, from) {
+        if (feedbackIndex !== index || !feedbackTimer.running)
+            feedbackFrom = from;
+        feedbackIndex = index;
+        feedbackTimer.restart();
+    }
+
+    Timer {
+        id: feedbackTimer
+        interval: 1200
+        onTriggered: tl.feedbackIndex = -1
     }
 
     onLengthChanged: fitted ? fit() : clampView()
@@ -97,7 +156,7 @@ Rectangle {
                 delegate: Item {
                     required property int index
                     readonly property real t: ruler.first + index * ruler.interval
-                    x: (t - tl.viewStart) * tl.pps
+                    x: tl.xOf(t)
                     height: ruler.height
                     Rectangle { width: 1; height: 6; anchors.bottom: parent.bottom; color: "#4a4a50" }
                     Label {
@@ -146,11 +205,18 @@ Rectangle {
                     readonly property bool selected: index === tl.selected
                     readonly property bool hasTransition: !isFirst && transition !== "none" && transitionDuration > 0
 
-                    x: (start - tl.viewStart) * tl.pps
+                    x: tl.xOf(start)
                     width: Math.max(3, duration * tl.pps)
                     height: imageTrack.height
                     z: index
                     visible: x + width >= 0 && x <= imageTrack.width
+
+                    function nudge(delta) {
+                        if (delta === 0)
+                            return;
+                        tl.showFeedback(index, duration);
+                        project.setDuration(index, Math.max(0.1, duration + delta));
+                    }
 
                     Rectangle {
                         anchors.fill: parent
@@ -166,21 +232,53 @@ Rectangle {
                             asynchronous: true
                             autoTransform: true
                         }
-                        // The overlap with the previous image: fades in from its side.
-                        Rectangle {
+
+                        // The overlap with the previous image, drawn as what
+                        // happens in it: a crossfade rises from one image to
+                        // the next; a fade out/in dips through black.
+                        Shape {
+                            id: transitionShape
                             visible: block.hasTransition
                             width: block.transitionDuration * tl.pps
                             height: parent.height
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop { position: 0; color: "#e0000000" }
-                                GradientStop { position: 1; color: "#00000000" }
+                            preferredRendererType: Shape.CurveRenderer
+                            readonly property bool dip: block.transition === "fadeblack"
+
+                            ShapePath {
+                                strokeWidth: 0
+                                strokeColor: "transparent"
+                                fillColor: transitionShape.dip ? "#d0000000" : "#90000000"
+                                startX: 0; startY: 0
+                                PathLine { x: transitionShape.dip ? transitionShape.width / 2 : 0; y: transitionShape.height }
+                                PathLine { x: transitionShape.dip ? transitionShape.width : 0; y: transitionShape.dip ? 0 : transitionShape.height }
+                                PathLine { x: transitionShape.dip ? 0 : transitionShape.width; y: 0 }
                             }
+                            ShapePath {
+                                strokeWidth: 1.5
+                                strokeColor: hoverTransition.hovered ? theme.accent : "#c0ffffff"
+                                fillColor: "transparent"
+                                startX: 0; startY: transitionShape.dip ? 0 : transitionShape.height
+                                PathLine { x: transitionShape.dip ? transitionShape.width / 2 : transitionShape.width; y: transitionShape.dip ? transitionShape.height : 0 }
+                                PathLine { x: transitionShape.width; y: 0 }
+                            }
+
+                            HoverHandler { id: hoverTransition; cursorShape: Qt.PointingHandCursor }
+                            TapHandler {
+                                onTapped: {
+                                    tl.forceActiveFocus();
+                                    transitionMenu.index = block.index;
+                                    transitionMenu.popup();
+                                }
+                            }
+                            ToolTip.visible: hoverTransition.hovered
+                            ToolTip.delay: 500
+                            ToolTip.text: Format.transition(block.transition) + " – " + Format.seconds(block.transitionDuration) + " s · click to change"
                         }
+
                         Rectangle {
-                            x: 4
+                            x: Math.max(4, transitionShape.visible ? transitionShape.width + 4 : 4)
                             y: 4
-                            visible: block.width > 26
+                            visible: block.width > x + 22
                             width: number.implicitWidth + 8
                             height: 16
                             radius: 3
@@ -234,10 +332,6 @@ Rectangle {
                         acceptedModifiers: Qt.ShiftModifier
                         onWheel: (event) => block.nudge(Format.wheelNotches(tl, event) * keys.scrollStep * 5)
                     }
-                    function nudge(delta) {
-                        if (delta !== 0)
-                            project.setDuration(index, Math.max(0.1, duration + delta));
-                    }
                 }
             }
 
@@ -255,7 +349,7 @@ Rectangle {
                     property real pressDuration: 0
 
                     z: 1000
-                    x: (start + duration - tl.viewStart) * tl.pps - width / 2
+                    x: tl.xOf(start + duration) - width / 2
                     width: 10
                     height: imageTrack.height
                     visible: x + width >= 0 && x <= imageTrack.width
@@ -276,13 +370,49 @@ Rectangle {
                         pressX = mapToItem(tl, mouse.x, 0).x;
                         pressDuration = duration;
                         tl.imageClicked(index);
+                        tl.showFeedback(index, duration);
                     }
                     onPositionChanged: (mouse) => {
                         if (!pressed)
                             return;
-                        var dx = mapToItem(tl, mouse.x, 0).x - pressX;
-                        project.setDuration(index, Math.max(0.1, pressDuration + dx / tl.pps));
+                        var end = start + pressDuration + (mapToItem(tl, mouse.x, 0).x - pressX) / tl.pps;
+                        var snapped = (mouse.modifiers & Qt.ShiftModifier) ? end : tl.snapTime(end, index);
+                        tl.snapLine = snapped !== end ? snapped : -1;
+                        tl.showFeedback(index, pressDuration);
+                        project.setDuration(index, Math.max(0.1, snapped - start));
                     }
+                    onReleased: tl.snapLine = -1
+                    onCanceled: tl.snapLine = -1
+                }
+            }
+
+            // "9.32 s → 10.10 s (+0.78)" while an image is being changed.
+            Rectangle {
+                id: feedback
+                readonly property int index: tl.feedbackIndex
+                readonly property real now: {
+                    project.videoDuration; // re-read after every edit
+                    return index >= 0 ? project.durationOf(index) : 0;
+                }
+                readonly property real endX: index >= 0 ? tl.xOf(project.startOf(index) + now) : 0
+                visible: index >= 0 && index < project.count
+                z: 1500
+                x: Math.max(2, Math.min(endX - width - 6, imageTrack.width - width - 2))
+                y: (imageTrack.height - height) / 2
+                width: feedbackLabel.implicitWidth + 14
+                height: 24
+                radius: 6
+                color: "#e01c1c1e"
+                border.color: theme.accent
+                Label {
+                    id: feedbackLabel
+                    anchors.centerIn: parent
+                    readonly property real delta: feedback.now - tl.feedbackFrom
+                    text: Format.seconds(tl.feedbackFrom) + " s → " + Format.seconds(feedback.now) + " s ("
+                          + (delta >= 0 ? "+" : "−") + Format.seconds(Math.abs(delta)) + ")"
+                    color: "white"
+                    font.pixelSize: 11
+                    font.family: "monospace"
                 }
             }
         }
@@ -295,6 +425,11 @@ Rectangle {
             height: parent.height - y
             radius: 4
             color: "#1c1c1f"
+
+            readonly property real end: project.audioEnd
+            readonly property real endX: tl.xOf(end)
+            readonly property real fadeInX: tl.xOf(Math.min(project.audioFadeIn, end))
+            readonly property real fadeOutX: tl.xOf(Math.max(0, end - project.audioFadeOut))
 
             Waveform {
                 anchors.fill: parent
@@ -311,31 +446,6 @@ Rectangle {
                 color: "#6a6a70"
                 font.pixelSize: 12
             }
-            // The fades, drawn as the waveform dimming towards silence.
-            readonly property real audioEnd: project.videoDuration > 0
-                ? Math.min(audioPreview.duration, project.videoDuration) : audioPreview.duration
-            Rectangle {
-                visible: audioPreview.ready && project.audioFadeIn > 0
-                x: (0 - tl.viewStart) * tl.pps
-                width: Math.min(project.audioFadeIn, audioTrack.audioEnd) * tl.pps
-                height: parent.height
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: "#f01c1c1f" }
-                    GradientStop { position: 1; color: "#001c1c1f" }
-                }
-            }
-            Rectangle {
-                visible: audioPreview.ready && project.audioFadeOut > 0
-                width: Math.min(project.audioFadeOut, audioTrack.audioEnd) * tl.pps
-                x: (audioTrack.audioEnd - tl.viewStart) * tl.pps - width
-                height: parent.height
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: "#001c1c1f" }
-                    GradientStop { position: 1; color: "#f01c1c1f" }
-                }
-            }
 
             MouseArea {
                 anchors.fill: parent
@@ -343,25 +453,190 @@ Rectangle {
                 onPressed: (mouse) => { tl.forceActiveFocus(); tl.seekRequested(tl.secondsAt(mouse.x)); }
                 onPositionChanged: (mouse) => { if (pressed) tl.seekRequested(tl.secondsAt(mouse.x)); }
             }
+
+            // The fades: the waveform is cut away above a line that rises from
+            // silence at the start and falls to silence at the end.
+            Shape {
+                anchors.fill: parent
+                visible: audioPreview.ready
+                preferredRendererType: Shape.CurveRenderer
+                ShapePath {
+                    strokeWidth: 0
+                    strokeColor: "transparent"
+                    fillColor: "#e01c1c1f"
+                    startX: tl.xOf(0); startY: 0
+                    PathLine { x: tl.xOf(0); y: audioTrack.height }
+                    PathLine { x: audioTrack.fadeInX; y: 0 }
+                }
+                ShapePath {
+                    strokeWidth: 0
+                    strokeColor: "transparent"
+                    fillColor: "#e01c1c1f"
+                    startX: audioTrack.fadeOutX; startY: 0
+                    PathLine { x: audioTrack.endX; y: audioTrack.height }
+                    PathLine { x: audioTrack.endX; y: 0 }
+                }
+                ShapePath {
+                    strokeWidth: project.audioFadeIn > 0 ? 1.5 : 0
+                    strokeColor: project.audioFadeIn > 0 ? "#c0ffffff" : "transparent"
+                    fillColor: "transparent"
+                    startX: tl.xOf(0); startY: audioTrack.height
+                    PathLine { x: audioTrack.fadeInX; y: 0 }
+                }
+                ShapePath {
+                    strokeWidth: project.audioFadeOut > 0 ? 1.5 : 0
+                    strokeColor: project.audioFadeOut > 0 ? "#c0ffffff" : "transparent"
+                    fillColor: "transparent"
+                    startX: audioTrack.fadeOutX; startY: 0
+                    PathLine { x: audioTrack.endX; y: audioTrack.height }
+                }
+            }
+            // Audio after the end of the pictures is cut off in the export.
+            Rectangle {
+                visible: audioPreview.ready && audioTrack.end < audioPreview.duration - 0.01
+                x: Math.max(0, audioTrack.endX)
+                width: Math.max(0, parent.width - x)
+                height: parent.height
+                color: "#c0161618"
+            }
+
+            // Fade handles: drag them in from the corners.
+            component FadeHandle: Rectangle {
+                id: fadeHandle
+                property bool fadeIn: true
+                signal dragged(real seconds)
+
+                width: 10
+                height: 10
+                y: 1
+                radius: 2
+                color: fadeArea.containsMouse || fadeArea.pressed ? theme.accent : "#d0d0d4"
+                visible: audioPreview.ready
+
+                MouseArea {
+                    id: fadeArea
+                    anchors.fill: parent
+                    anchors.margins: -4
+                    hoverEnabled: true
+                    preventStealing: true
+                    cursorShape: Qt.SizeHorCursor
+                    onPositionChanged: (mouse) => {
+                        if (pressed)
+                            fadeHandle.dragged(tl.secondsAt(mapToItem(audioTrack, mouse.x, 0).x));
+                    }
+                }
+                ToolTip.visible: fadeArea.containsMouse || fadeArea.pressed
+                ToolTip.text: (fadeIn ? "Fade in " + Format.seconds(project.audioFadeIn)
+                                      : "Fade out " + Format.seconds(project.audioFadeOut)) + " s"
+            }
+            FadeHandle {
+                objectName: "fadeInHandle"
+                fadeIn: true
+                x: audioTrack.fadeInX - (project.audioFadeIn > 0 ? width / 2 : 0)
+                onDragged: (seconds) => project.audioFadeIn = Math.round(Math.max(0, Math.min(seconds, audioTrack.end)) * 10) / 10
+            }
+            FadeHandle {
+                objectName: "fadeOutHandle"
+                fadeIn: false
+                x: audioTrack.fadeOutX - (project.audioFadeOut > 0 ? width / 2 : width)
+                onDragged: (seconds) => project.audioFadeOut = Math.round(Math.max(0, Math.min(audioTrack.end - seconds, audioTrack.end)) * 10) / 10
+            }
         }
 
         // Where the video ends, so a mismatch with the audio is visible.
         Rectangle {
             visible: project.videoDuration > 0
-            x: (project.videoDuration - tl.viewStart) * tl.pps
+            x: tl.xOf(project.videoDuration)
             y: ruler.height
             width: 1
             height: parent.height - y
             color: "#ffffff50"
         }
 
+        // --- markers ---
+        Repeater {
+            model: project.markers
+            delegate: Item {
+                id: marker
+                required property real modelData
+                required property int index
+                x: tl.xOf(modelData)
+                height: area.height
+                z: 1800
+                visible: x >= -6 && x <= area.width + 6
+
+                Rectangle { x: -0.5; y: ruler.height; width: 1; height: parent.height - y; color: tl.markerColor; opacity: 0.8 }
+                Rectangle {
+                    id: flag
+                    x: -5
+                    y: 1
+                    width: 10
+                    height: 14
+                    radius: 2
+                    color: flagArea.containsMouse || flagArea.pressed ? Qt.lighter(tl.markerColor, 1.25) : tl.markerColor
+                    MouseArea {
+                        id: flagArea
+                        anchors.fill: parent
+                        anchors.margins: -3
+                        hoverEnabled: true
+                        preventStealing: true
+                        cursorShape: Qt.SizeHorCursor
+                        property bool moved: false
+                        onPressed: moved = false
+                        onPositionChanged: (mouse) => {
+                            if (!pressed)
+                                return;
+                            moved = true;
+                            project.moveMarker(marker.index, tl.secondsAt(mapToItem(area, mouse.x, 0).x));
+                        }
+                        onClicked: if (!moved) tl.seekRequested(marker.modelData)
+                        onDoubleClicked: project.removeMarker(marker.index)
+                    }
+                    ToolTip.visible: flagArea.containsMouse
+                    ToolTip.delay: 500
+                    ToolTip.text: "Marker at " + Format.time(marker.modelData) + " · drag to move, double-click to remove"
+                }
+            }
+        }
+
+        // The snap point an edge is being pulled to.
+        Rectangle {
+            visible: tl.snapLine >= 0
+            x: tl.xOf(tl.snapLine) - 1
+            y: ruler.height
+            width: 2
+            height: parent.height - y
+            color: theme.accent
+            z: 1900
+        }
+
         // --- playhead ---
         Item {
-            x: (tl.position - tl.viewStart) * tl.pps
+            x: tl.xOf(tl.position)
             height: parent.height
             z: 2000
             Rectangle { x: -1; width: 2; height: parent.height; color: "white" }
             Rectangle { x: -5; y: 0; width: 10; height: 10; radius: 2; rotation: 45; color: "white" }
+        }
+    }
+
+    // Soundslides' transition choices for the image whose overlap was clicked.
+    Menu {
+        id: transitionMenu
+        property int index: -1
+
+        Repeater {
+            model: project.transitionPresets
+            delegate: MenuItem {
+                required property var modelData
+                text: modelData.label
+                onTriggered: project.setTransitionPreset(transitionMenu.index, modelData.transition, modelData.duration)
+            }
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: "Use the project default"
+            onTriggered: project.resetTransitionPreset(transitionMenu.index)
         }
     }
 

@@ -144,6 +144,44 @@ ApplicationWindow {
                     + " its own duration. It will be reset so every image gets the same duration.",
                     [{ label: "Cancel" }, { label: "Fit", primary: true, run: doFitToAudio }]);
     }
+    function fitToMarkers() {
+        var changes = project.count - 1;
+        var used = project.fitToMarkers();
+        if (used === 0) {
+            showNotice(project.markers.length === 0
+                       ? "No markers yet. Press M while the audio plays to set one at each change."
+                       : "Add at least two images to fit them to markers");
+            return;
+        }
+        var note = "Fitted " + (used + 1) + " images to " + used + (used === 1 ? " marker" : " markers");
+        if (project.markers.length > changes)
+            note += " · " + (project.markers.length - changes) + " extra ignored";
+        else if (used < changes)
+            note += " · the last " + (changes - used) + " keep their durations";
+        showNotice(note);
+    }
+    function addMarker() {
+        if (project.addMarker(position) < 0)
+            showNotice("There is already a marker here");
+    }
+    function removeMarker() {
+        if (!project.removeMarkerNear(position, Math.max(0.5, 12 / timeline.pps)))
+            showNotice("No marker near the playhead");
+    }
+    function undo() {
+        if (!project.canUndo)
+            return;
+        var text = project.undoText;
+        project.undo();
+        showNotice("Undid: " + text);
+    }
+    function redo() {
+        if (!project.canRedo)
+            return;
+        var text = project.redoText;
+        project.redo();
+        showNotice("Redid: " + text);
+    }
     function doFitToAudio() {
         if (project.fitToAudio())
             showNotice("Each image is now shown for " + Format.seconds(project.defaultDuration) + " s");
@@ -233,6 +271,13 @@ ApplicationWindow {
     Connections {
         target: app
         function onNotice(text) { win.showNotice(text); }
+        function onProjectOpened() {
+            win.pause();
+            win.position = 0;
+            win.selected = -1;
+            timeline.fit();
+            win.select(0);
+        }
         function onSaved() {
             if (win.quitAfterSave)
                 win.forceQuit();
@@ -244,12 +289,13 @@ ApplicationWindow {
     }
     Connections {
         target: project
+        // Undo and redo can change the number of images; keep the selection valid.
         function onModelReset() {
             win.revision++;
-            win.pause();
-            win.position = 0;
-            timeline.fit();
-            win.select(0);
+            if (win.selected >= project.count)
+                win.selected = project.count - 1;
+            if (win.selected < 0 && project.count > 0)
+                win.selected = 0;
         }
         function onRowsInserted(parent, first, last) {
             win.revision++;
@@ -303,6 +349,27 @@ ApplicationWindow {
     Action { name: "move_image_left"; onActivated: win.moveSelected(-1) }
     Action { name: "move_image_right"; onActivated: win.moveSelected(1) }
     Action { name: "remove_image"; onActivated: win.removeSelected() }
+    Action { name: "add_marker"; onActivated: win.addMarker() }
+    Action { name: "remove_marker"; onActivated: win.removeMarker() }
+    Action {
+        name: "previous_marker"
+        onActivated: {
+            var m = project.markerBefore(win.position);
+            if (m >= 0)
+                win.seek(m);
+        }
+    }
+    Action {
+        name: "next_marker"
+        onActivated: {
+            var m = project.markerAfter(win.position);
+            if (m >= 0)
+                win.seek(m);
+        }
+    }
+    Action { name: "fit_to_markers"; onActivated: win.fitToMarkers() }
+    Action { name: "undo"; onActivated: win.undo() }
+    Action { name: "redo"; onActivated: win.redo() }
     Action { name: "zoom_in"; onActivated: timeline.zoom(1.5, win.position) }
     Action { name: "zoom_out"; onActivated: timeline.zoom(1 / 1.5, win.position) }
     Action { name: "zoom_fit"; onActivated: timeline.fit() }
@@ -357,6 +424,24 @@ ApplicationWindow {
             }
             Button { text: "+ Images"; flat: true; focusPolicy: Qt.NoFocus; onClicked: win.addImages() }
             Button { text: "+ Audio"; flat: true; focusPolicy: Qt.NoFocus; onClicked: app.addAudioDialog() }
+            ToolButton {
+                text: "↶"
+                font.pixelSize: 18
+                enabled: project.canUndo
+                focusPolicy: Qt.NoFocus
+                ToolTip.visible: hovered
+                ToolTip.text: "Undo " + project.undoText + " (Ctrl+Z)"
+                onClicked: win.undo()
+            }
+            ToolButton {
+                text: "↷"
+                font.pixelSize: 18
+                enabled: project.canRedo
+                focusPolicy: Qt.NoFocus
+                ToolTip.visible: hovered
+                ToolTip.text: "Redo " + project.redoText + " (Ctrl+Shift+Z)"
+                onClicked: win.redo()
+            }
             Item { Layout.fillWidth: true }
             Button { text: "New"; flat: true; focusPolicy: Qt.NoFocus; onClicked: win.newProject() }
             Button { text: "Open"; flat: true; focusPolicy: Qt.NoFocus; onClicked: app.openProjectDialog() }
@@ -818,11 +903,12 @@ ApplicationWindow {
                 }
 
                 Grid {
-                    columns: 2
-                    columnSpacing: 36
-                    rowSpacing: 7
+                    id: helpGrid
+                    columns: win.width > 1180 ? 3 : 2
+                    columnSpacing: 28
+                    rowSpacing: 6
                     flow: Grid.TopToBottom
-                    rows: Math.ceil(keys.actions.length / 2)
+                    rows: Math.ceil(keys.actions.length / columns)
 
                     Repeater {
                         model: keys.actions
@@ -853,9 +939,12 @@ ApplicationWindow {
                     Repeater {
                         model: [
                             "Scroll over an image or a number: ±" + Format.seconds(keys.scrollStep) + " s (Shift: ×5)",
-                            "Drag the right edge of an image: set its duration",
                             "Scroll on the timeline: pan  ·  Ctrl + scroll: zoom",
-                            "Click or drag on the ruler or the audio: move the playhead"
+                            "Click or drag on the ruler or the audio: move the playhead",
+                            "Drag an image's right edge: set its duration (snaps; hold Shift to place freely)",
+                            "Click a transition in the image track: choose another",
+                            "Drag the squares on the audio: fade in and out",
+                            "Markers: drag the flag to move, double-click to remove"
                         ]
                         delegate: Label {
                             required property string modelData

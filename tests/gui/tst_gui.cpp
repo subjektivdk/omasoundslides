@@ -168,6 +168,73 @@ private Q_SLOTS:
         model->resetTransitionPreset(2);
     }
 
+    void ctrlZUndoesAWheelBurst()
+    {
+        ProjectModel *model = m_controller.project();
+        auto *timeline = m_window->findChild<QQuickItem *>(QStringLiteral("timeline"));
+        QVariant result;
+        QVERIFY(QMetaObject::invokeMethod(timeline, "blockAt", Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, 1)));
+        auto *block = result.value<QQuickItem *>();
+        const double before = model->durationOf(1);
+        for (int i = 0; i < 3; ++i)
+            wheel(m_window, centerOf(block), 1);
+        QTRY_COMPARE(model->durationOf(1), before + 0.3);
+        QTest::keyClick(m_window, Qt::Key_Z, Qt::ControlModifier);
+        QTRY_COMPARE(model->durationOf(1), before);
+        QTest::keyClick(m_window, Qt::Key_Z, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_COMPARE(model->durationOf(1), before + 0.3);
+        QTest::keyClick(m_window, Qt::Key_Z, Qt::ControlModifier);
+        QTRY_COMPARE(model->durationOf(1), before);
+    }
+
+    void mAddsAMarkerAndEdgesSnapToIt()
+    {
+        ProjectModel *model = m_controller.project();
+        auto *timeline = m_window->findChild<QQuickItem *>(QStringLiteral("timeline"));
+        // A marker 1.3 s into image 1's time.
+        const double marker = model->startOf(1) + model->durationOf(1) - 0.7;
+        QMetaObject::invokeMethod(m_window, "seek", Q_ARG(QVariant, marker));
+        QTest::keyClick(m_window, Qt::Key_M);
+        QTRY_COMPARE(model->markers().size(), 1);
+        QCOMPARE(model->markers().first().toDouble(), marker);
+        // Move the playhead away so it isn't a snap point itself.
+        QMetaObject::invokeMethod(m_window, "seek", Q_ARG(QVariant, 0.0));
+
+        QVariant result;
+        QVERIFY(QMetaObject::invokeMethod(timeline, "blockAt", Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, 1)));
+        auto *block = result.value<QQuickItem *>();
+        const double pps = timeline->property("pps").toDouble();
+        const QPointF edge = block->mapToScene(QPointF(block->width(), block->height() / 2));
+        const QPointF nearMarker(block->mapToScene(QPointF((marker - model->startOf(1)) * pps + 4, 0)).x(), edge.y());
+
+        const double start = model->startOf(1);
+        QTest::mousePress(m_window, Qt::LeftButton, {}, edge.toPoint());
+        QTest::mouseMove(m_window, ((edge + nearMarker) / 2).toPoint());
+        QTest::mouseMove(m_window, nearMarker.toPoint());
+        QTest::mouseRelease(m_window, Qt::LeftButton, {}, nearMarker.toPoint());
+        QTRY_VERIFY(qAbs(model->durationOf(1) - std::round((marker - start) * 100) / 100) < 0.006);
+
+        model->undo();
+        model->clearMarkers();
+    }
+
+    void fadeHandleSetsTheFadeIn()
+    {
+        ProjectModel *model = m_controller.project();
+        auto *handle = m_window->findChild<QQuickItem *>(QStringLiteral("fadeInHandle"));
+        QVERIFY(handle);
+        QVERIFY(handle->isVisible());
+        const QPointF from = centerOf(handle);
+        const QPointF to = from + QPointF(60, 0);
+        QTest::mousePress(m_window, Qt::LeftButton, {}, from.toPoint());
+        QTest::mouseMove(m_window, (from + QPointF(30, 0)).toPoint());
+        QTest::mouseMove(m_window, to.toPoint());
+        QTest::mouseRelease(m_window, Qt::LeftButton, {}, to.toPoint());
+        QTRY_VERIFY(model->audioFadeIn() > 0.3);
+        model->undo();
+        QCOMPARE(model->audioFadeIn(), 0.0);
+    }
+
     void arrowsMoveThePlayhead()
     {
         const double before = m_window->property("position").toDouble();

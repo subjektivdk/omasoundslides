@@ -38,6 +38,8 @@ struct Project {
     // where the audio ends in the video.
     double audioFadeIn = 0;
     double audioFadeOut = 0;
+    // Cue points in seconds, set while listening; images can be fitted to them.
+    QList<double> markers;
     // Directory that relative paths in the project file are resolved against.
     QString baseDir;
 

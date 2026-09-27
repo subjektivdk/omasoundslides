@@ -269,6 +269,34 @@ Rectangle {
                         text: "Gives every image the same duration so the show ends with the audio."
                     }
 
+                    Button {
+                        objectName: "fitToMarkersButton"
+                        Layout.fillWidth: true
+                        Layout.topMargin: 4
+                        text: "Fit images to markers"
+                        enabled: project.count > 1 && project.markers.length > 0
+                        focusPolicy: Qt.NoFocus
+                        onClicked: win.fitToMarkers()
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Hint {
+                            text: project.markers.length === 0
+                                  ? "Press M while the audio plays to mark where each image should change."
+                                  : project.markers.length + (project.markers.length === 1 ? " marker" : " markers")
+                                    + " for " + Math.max(0, project.count - 1) + " image changes."
+                        }
+                        ToolButton {
+                            visible: project.markers.length > 0
+                            text: "Clear"
+                            font.pixelSize: 12
+                            focusPolicy: Qt.NoFocus
+                            ToolTip.visible: hovered
+                            ToolTip.text: "Remove all markers"
+                            onClicked: project.clearMarkers()
+                        }
+                    }
+
                     Label {
                         text: "Audio"
                         color: "white"

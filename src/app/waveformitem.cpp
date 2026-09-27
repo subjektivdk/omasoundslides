@@ -1,6 +1,7 @@
 #include "waveformitem.h"
 
 #include <QPainter>
+#include <QPolygonF>
 
 #include <algorithm>
 #include <cmath>
@@ -60,6 +61,34 @@ void WaveformItem::paint(QPainter *painter)
     const int w = int(width());
     const double mid = height() / 2.0;
     const double half = height() / 2.0 - 1;
+
+    // A faint centre line, so silence still shows where the audio is.
+    QColor line = m_color;
+    line.setAlphaF(0.35);
+    const double audioEndX = (peaks.size() / perSecond - m_viewStart) * m_pixelsPerSecond;
+    painter->setPen(QPen(line, 1));
+    painter->drawLine(QPointF(std::max(0.0, -m_viewStart * m_pixelsPerSecond), mid),
+                      QPointF(std::min<double>(w, audioEndX), mid));
+
+    // Zoomed in (fewer than one peak per pixel): a filled outline through the
+    // peaks, like Kdenlive, instead of a staircase of repeated lines.
+    if (m_pixelsPerSecond >= perSecond) {
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        const qsizetype first = std::max<qsizetype>(0, qsizetype(std::floor(m_viewStart * perSecond)) - 1);
+        const qsizetype last = std::min<qsizetype>(peaks.size() - 1,
+                                                   qsizetype(std::ceil((m_viewStart + w / m_pixelsPerSecond) * perSecond)) + 1);
+        if (first > last)
+            return;
+        QPolygonF outline;
+        for (qsizetype i = first; i <= last; ++i)
+            outline << QPointF((i / perSecond - m_viewStart) * m_pixelsPerSecond, mid - std::max(0.5, peaks.at(i) * half));
+        for (qsizetype i = last; i >= first; --i)
+            outline << QPointF((i / perSecond - m_viewStart) * m_pixelsPerSecond, mid + std::max(0.5, peaks.at(i) * half));
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(m_color);
+        painter->drawPolygon(outline);
+        return;
+    }
 
     painter->setPen(QPen(m_color, 1));
     for (int x = 0; x < w; ++x) {
