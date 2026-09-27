@@ -14,13 +14,13 @@ Rectangle {
     property var item: null
     readonly property bool hasItem: item !== null && project.count > 0
 
-    color: "#161618"
+    color: theme.panel
     radius: 12
 
     readonly property int controlWidth: 186
 
     component FieldLabel: Label {
-        color: "#b8b8bc"
+        color: theme.text
         font.pixelSize: 13
         Layout.fillWidth: true
         elide: Text.ElideRight
@@ -49,7 +49,7 @@ Rectangle {
         contentItem: Rectangle {
             implicitWidth: 4
             radius: 2
-            color: bar.pressed ? theme.accent : "#6a6a70"
+            color: bar.pressed ? theme.accent : theme.textFaint
             opacity: bar.size < 1 && (bar.active || bar.hovered) ? 1 : 0.35
             visible: bar.size < 1
         }
@@ -57,7 +57,7 @@ Rectangle {
 
     component Hint: Label {
         Layout.fillWidth: true
-        color: "#8a8a90"
+        color: theme.textMuted
         font.pixelSize: 12
         wrapMode: Text.WordWrap
     }
@@ -101,7 +101,7 @@ Rectangle {
 
                     Label {
                         text: inspector.hasItem ? "Image " + (inspector.item.index + 1) + " of " + project.count : "No image selected"
-                        color: "white"
+                        color: theme.textStrong
                         font.pixelSize: 15
                         font.weight: Font.DemiBold
                     }
@@ -109,7 +109,7 @@ Rectangle {
                         visible: inspector.hasItem
                         Layout.fillWidth: true
                         text: inspector.hasItem ? inspector.item.fileName : ""
-                        color: "#8a8a90"
+                        color: theme.textMuted
                         font.pixelSize: 12
                         elide: Text.ElideMiddle
                     }
@@ -118,7 +118,7 @@ Rectangle {
                         text: inspector.hasItem
                               ? "Shown " + Format.time(inspector.item.start) + " – " + Format.time(inspector.item.start + inspector.item.duration)
                               : ""
-                        color: "#8a8a90"
+                        color: theme.textMuted
                         font.pixelSize: 12
                         font.family: "monospace"
                         Layout.bottomMargin: 6
@@ -224,7 +224,7 @@ Rectangle {
 
                     Label {
                         text: "Name"
-                        color: "white"
+                        color: theme.textStrong
                         font.pixelSize: 15
                         font.weight: Font.DemiBold
                     }
@@ -260,7 +260,7 @@ Rectangle {
 
                     Label {
                         text: "Defaults for all images"
-                        color: "white"
+                        color: theme.textStrong
                         font.pixelSize: 15
                         font.weight: Font.DemiBold
                     }
@@ -305,7 +305,7 @@ Rectangle {
                     Label {
                         objectName: "labelsHeading"
                         text: "Labels"
-                        color: "white"
+                        color: theme.textStrong
                         font.pixelSize: 15
                         font.weight: Font.DemiBold
                         Layout.topMargin: 12
@@ -375,7 +375,7 @@ Rectangle {
 
                     Label {
                         text: "Audio"
-                        color: "white"
+                        color: theme.textStrong
                         font.pixelSize: 15
                         font.weight: Font.DemiBold
                         Layout.topMargin: 12
@@ -411,7 +411,7 @@ Rectangle {
 
                     Label {
                         text: "Video"
-                        color: "white"
+                        color: theme.textStrong
                         font.pixelSize: 15
                         font.weight: Font.DemiBold
                         Layout.topMargin: 12

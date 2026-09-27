@@ -81,6 +81,9 @@ private Q_SLOTS:
         m_engine.rootContext()->setContextProperty(QStringLiteral("project"), m_controller.project());
         m_engine.rootContext()->setContextProperty(QStringLiteral("audioPreview"), m_controller.audio());
         m_engine.rootContext()->setContextProperty(QStringLiteral("keys"), m_keys);
+        QFile logo(QStringLiteral(":/qml/logo.txt"));
+        QVERIFY(logo.open(QIODevice::ReadOnly));
+        m_engine.rootContext()->setContextProperty(QStringLiteral("logoText"), QString::fromUtf8(logo.readAll()));
         m_engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
         QVERIFY(!m_engine.rootObjects().isEmpty());
         m_window = qobject_cast<QQuickWindow *>(m_engine.rootObjects().first());

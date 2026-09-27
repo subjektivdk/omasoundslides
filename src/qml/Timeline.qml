@@ -32,7 +32,7 @@ Rectangle {
     readonly property real maxPps: 400
     // How close (in pixels) an edge must come to a snap point to jump to it.
     readonly property real snapPixels: 8
-    readonly property color markerColor: "#e8b04a"
+    readonly property color markerColor: theme.marker
 
     // Shown while an edge is being snapped, in seconds; -1 when not snapping.
     property real snapLine: -1
@@ -43,7 +43,7 @@ Rectangle {
     signal seekRequested(real seconds)
     signal imageClicked(int index)
 
-    color: "#161618"
+    color: theme.panel
     radius: 12
 
     function fit() {
@@ -156,11 +156,11 @@ Rectangle {
                     readonly property real t: ruler.first + index * ruler.interval
                     x: tl.xOf(t)
                     height: ruler.height
-                    Rectangle { width: 1; height: 6; anchors.bottom: parent.bottom; color: "#4a4a50" }
+                    Rectangle { width: 1; height: 6; anchors.bottom: parent.bottom; color: theme.border }
                     Label {
                         x: 4
                         text: Format.clock(parent.t)
-                        color: "#8a8a90"
+                        color: theme.textMuted
                         font.pixelSize: 10
                         font.family: "monospace"
                     }
@@ -308,7 +308,7 @@ Rectangle {
                         radius: 4
                         color: "transparent"
                         border.width: block.selected ? 2 : 1
-                        border.color: block.selected ? theme.accent : (hover.hovered ? "#8a8a90" : "#000000")
+                        border.color: block.selected ? theme.accent : (hover.hovered ? theme.textMuted : "#000000")
                     }
 
                     HoverHandler { id: hover }
@@ -385,7 +385,7 @@ Rectangle {
                 width: feedbackLabel.implicitWidth + 14
                 height: 24
                 radius: 6
-                color: "#e01c1c1e"
+                color: Qt.alpha(theme.panel, 0.94)
                 border.color: theme.accent
                 Label {
                     id: feedbackLabel
@@ -393,7 +393,7 @@ Rectangle {
                     readonly property real delta: feedback.now - tl.feedbackFrom
                     text: Format.seconds(tl.feedbackFrom) + " s → " + Format.seconds(feedback.now) + " s ("
                           + (delta >= 0 ? "+" : "−") + Format.seconds(Math.abs(delta)) + ")"
-                    color: "white"
+                    color: theme.textStrong
                     font.pixelSize: 11
                     font.family: "monospace"
                 }
@@ -407,7 +407,7 @@ Rectangle {
             width: parent.width
             height: parent.height - y
             radius: 4
-            color: "#1c1c1f"
+            color: theme.raised
 
             readonly property real end: project.audioEnd
             readonly property real endX: tl.xOf(end)
@@ -419,14 +419,14 @@ Rectangle {
                 preview: audioPreview
                 viewStart: tl.viewStart
                 pixelsPerSecond: tl.pps
-                color: Qt.lighter(theme.accent, 1.5)
+                color: theme.waveform
             }
             Label {
                 anchors.centerIn: parent
                 visible: !audioPreview.ready
                 text: audioPreview.building ? "Reading the audio…"
                       : (project.audio.length === 0 ? "No audio. Add some with + Audio or drop a file here." : "")
-                color: "#6a6a70"
+                color: theme.textFaint
                 font.pixelSize: 12
             }
 
@@ -446,7 +446,7 @@ Rectangle {
                 ShapePath {
                     strokeWidth: 0
                     strokeColor: "transparent"
-                    fillColor: "#e01c1c1f"
+                    fillColor: Qt.alpha(theme.raised, 0.88)
                     startX: tl.xOf(0); startY: 0
                     PathLine { x: tl.xOf(0); y: audioTrack.height }
                     PathLine { x: audioTrack.fadeInX; y: 0 }
@@ -454,21 +454,21 @@ Rectangle {
                 ShapePath {
                     strokeWidth: 0
                     strokeColor: "transparent"
-                    fillColor: "#e01c1c1f"
+                    fillColor: Qt.alpha(theme.raised, 0.88)
                     startX: audioTrack.fadeOutX; startY: 0
                     PathLine { x: audioTrack.endX; y: audioTrack.height }
                     PathLine { x: audioTrack.endX; y: 0 }
                 }
                 ShapePath {
                     strokeWidth: project.audioFadeIn > 0 ? 1.5 : 0
-                    strokeColor: project.audioFadeIn > 0 ? "#c0ffffff" : "transparent"
+                    strokeColor: project.audioFadeIn > 0 ? Qt.alpha(theme.text, 0.75) : "transparent"
                     fillColor: "transparent"
                     startX: tl.xOf(0); startY: audioTrack.height
                     PathLine { x: audioTrack.fadeInX; y: 0 }
                 }
                 ShapePath {
                     strokeWidth: project.audioFadeOut > 0 ? 1.5 : 0
-                    strokeColor: project.audioFadeOut > 0 ? "#c0ffffff" : "transparent"
+                    strokeColor: project.audioFadeOut > 0 ? Qt.alpha(theme.text, 0.75) : "transparent"
                     fillColor: "transparent"
                     startX: audioTrack.fadeOutX; startY: 0
                     PathLine { x: audioTrack.endX; y: audioTrack.height }
@@ -480,7 +480,7 @@ Rectangle {
                 x: Math.max(0, audioTrack.endX)
                 width: Math.max(0, parent.width - x)
                 height: parent.height
-                color: "#c0161618"
+                color: Qt.alpha(theme.panel, 0.75)
             }
 
             // Fade handles: drag them in from the corners.
@@ -493,7 +493,7 @@ Rectangle {
                 height: 10
                 y: 1
                 radius: 2
-                color: fadeArea.containsMouse || fadeArea.pressed ? theme.accent : "#d0d0d4"
+                color: fadeArea.containsMouse || fadeArea.pressed ? theme.accent : theme.text
                 visible: audioPreview.ready
 
                 MouseArea {
@@ -533,7 +533,7 @@ Rectangle {
             y: ruler.height
             width: 1
             height: parent.height - y
-            color: "#ffffff50"
+            color: Qt.alpha(theme.text, 0.35)
         }
 
         // --- markers ---
@@ -598,8 +598,8 @@ Rectangle {
             x: tl.xOf(tl.position)
             height: parent.height
             z: 2000
-            Rectangle { x: -1; width: 2; height: parent.height; color: "white" }
-            Rectangle { x: -5; y: 0; width: 10; height: 10; radius: 2; rotation: 45; color: "white" }
+            Rectangle { x: -1; width: 2; height: parent.height; color: theme.playhead }
+            Rectangle { x: -5; y: 0; width: 10; height: 10; radius: 2; rotation: 45; color: theme.playhead }
         }
     }
 

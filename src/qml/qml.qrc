@@ -3,6 +3,8 @@
         <file>Main.qml</file>
         <file>AccentButton.qml</file>
         <file>Inspector.qml</file>
+        <file>LogoMark.qml</file>
+        <file alias="logo.txt">../../logo.txt</file>
         <file>NumberField.qml</file>
         <file>Timeline.qml</file>
         <file>TransitionBox.qml</file>

@@ -27,7 +27,7 @@ TextField {
     horizontalAlignment: Text.AlignRight
     font.pixelSize: 14
     font.family: "monospace"
-    color: overridden ? theme.accent : "#e6e6ea"
+    color: overridden ? theme.accent : theme.text
     selectByMouse: true
     opacity: enabled ? 1 : 0.4
     validator: RegularExpressionValidator { regularExpression: /^\d{0,3}([.,]\d{0,2})?$/ }

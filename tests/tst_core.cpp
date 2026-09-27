@@ -1,4 +1,5 @@
 #include "app/controller.h"
+#include "app/theme.h"
 #include "core/audacitylabels.h"
 #include "core/audiopreview.h"
 #include "core/ffmpegcommand.h"
@@ -746,6 +747,48 @@ private Q_SLOTS:
         const auto again = AudioPreview::build({a, b}, dir.path());
         QCOMPARE(again.file, result.file);
         QCOMPARE(QFileInfo(again.file).lastModified(), before);
+    }
+
+    void themeFollowsOmarchyLightAndDark()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("theme/colors.toml"));
+        QDir(dir.path()).mkpath(QStringLiteral("theme"));
+        auto write = [&](const char *text) {
+            QFile f(path);
+            QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            f.write(text);
+        };
+
+        // No theme at all: the neutral dark fallback.
+        Theme none(dir.filePath(QStringLiteral("missing/colors.toml")));
+        QVERIFY(none.dark());
+        QCOMPARE(none.window(), QColor(QStringLiteral("#0e0e10")));
+
+        // A light theme, as Omarchy writes them.
+        write("mode = \"light\"\naccent = \"#1e66f5\"\nbackground = \"#eff1f5\"\n"
+              "foreground = \"#4c4f69\"\nbright_foreground = \"#4c4f69\"\ndark_foreground = \"#9ca0b0\"\n"
+              "red = \"#d20f39\"\nyellow = \"#df8e1d\"\n");
+        Theme theme(path);
+        QVERIFY(!theme.dark());
+        QCOMPARE(theme.window(), QColor(QStringLiteral("#eff1f5")));
+        QCOMPARE(theme.text(), QColor(QStringLiteral("#4c4f69")));
+        QCOMPARE(theme.accent(), QColor(QStringLiteral("#1e66f5")));
+        QCOMPARE(theme.accentForeground(), QColor(Qt::white));
+        QCOMPARE(theme.marker(), QColor(QStringLiteral("#df8e1d")));
+        // Panels sit between background and text, a little towards the text.
+        QVERIFY(theme.panel().lightnessF() < theme.window().lightnessF());
+        QVERIFY(theme.panel().lightnessF() > theme.text().lightnessF());
+
+        // Switching to a dark theme is picked up live.
+        QSignalSpy changed(&theme, &Theme::changed);
+        write("mode = \"dark\"\naccent = \"#2b5e8f\"\nbackground = \"#0b1b2b\"\nforeground = \"#b9b6a7\"\n");
+        QTRY_VERIFY(changed.count() > 0);
+        QVERIFY(theme.dark());
+        QCOMPARE(theme.window(), QColor(QStringLiteral("#0b1b2b")));
+        QVERIFY(theme.panel().lightnessF() > theme.window().lightnessF());
+        // Missing keys fall back sensibly: bright text = the text itself.
+        QCOMPARE(theme.textStrong(), QColor(QStringLiteral("#b9b6a7")));
     }
 
     void rendersARealVideo()

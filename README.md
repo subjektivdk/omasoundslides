@@ -1,5 +1,23 @@
 # omasoundslides
 
+```
+ ▄███▄   ▄████████▄   ▄███▄    ▄█████   ▄███▄   ▄█   █▄  ▄█████▄  ██████▄
+██   ██  ██  ██  ██  ██   ██  ██       ██   ██  ██   ██  ██   ██  ██   ██
+██   ██  ██  ██  ██  ██   ██  ██▄▄▄▄   ██   ██  ██   ██  ██   ██  ██   ██
+██   ██  ██  ██  ██  ██▄▄▄██   ▀▀▀▀██  ██   ██  ██   ██  ██   ██  ██   ██
+██   ██  ██  ██  ██  ██▀▀▀██       ██  ██   ██  ██   ██  ██   ██  ██   ██
+██   ██  ██  ██  ██  ██   ██       ██  ██   ██  ██   ██  ██   ██  ██   ██
+ ▀███▀   ▀█  ██  █▀  ██   █▀  █████▀    ▀███▀    ▀███▀   ██   █▀  ██████▀
+
+ ▄█████  ▄█       ▄█  ██████▄   ▄█████   ▄█████            ▄▄
+██       ██       ██  ██   ██  ██       ██                 ██    ▄▄
+██▄▄▄▄   ██       ██  ██   ██  ██▄▄▄▄   ██▄▄▄▄          ▄▄ ██    ██
+ ▀▀▀▀██  ██       ██  ██   ██  ██▀▀▀▀    ▀▀▀▀██         ██ ██ ██ ██
+     ██  ██       ██  ██   ██  ██            ██         ██ ██ ██ ██ ██
+     ██  ██       ██  ██   ██  ██            ██      ██ ██ ██ ██ ██ ██ ▄▄
+█████▀   ███████  █▀  ██████▀   ▀█████  █████▀       ██ ██ ██ ██ ██ ██ ██
+```
+
 Billeder + lyd → video, i stil med Soundslides. Bygget med C++/Qt 6 og ffmpeg, efter samme mønster som Omarchys Omacut.
 
 Status: **trin 3, tidslinje og afspilning** oven på motoren fra trin 1. Brugerfladen og kommandolinjen er på engelsk.
@@ -35,6 +53,7 @@ omasoundslides projekt.json         # åbn et projekt
 - Statuslinjen viser videoens og lydens længde og siger til, når de ikke passer.
 - Eksport (Ctrl+E) laver altid MP4 med H.264, som spiller overalt. Kvaliteten vælges i gem-dialogen eller under Video i Project-fanen: **Standard** (CRF 20, ca. 6,4 MB pr. minut i 1080p) eller **High** (CRF 18, lidt skarpere, ca. 20 % større). Valget gemmes i projektet. Eksporten renderer til en midlertidig fil, som først får det rigtige navn, når den er færdig.
 - Space afspiller/pauser altid, undtagen mens du skriver projektets navn. Et klik uden for et felt giver tastaturet tilbage til genvejene.
+- **Farverne følger Omarchy-temaet**, også mens programmet kører: mørkt vindue ved et mørkt tema, lyst ved et lyst, i temaets egne farver og accent. Billeder og videoens sorte kanter vises som i den færdige video.
 - Tryk `?` for alle tastaturgenveje. `Q` afslutter og advarer om ikke-gemte ændringer.
 
 ### Tastaturgenveje
@@ -129,7 +148,7 @@ src/core/audiopreview.*   lydfilerne samlet til én preview-fil + waveform
 src/core/keybindings.*    keybindings.conf: indlæs, standardværdier, genindlæs
 src/app/controller.*      åbn/gem, tilføj filer, eksport i baggrunden
 src/app/portalfilepicker.* filvælger via xdg-desktop-portal (fra Omacut)
-src/app/theme.*           følger Omarchy-temaets accentfarve (fra Omacut)
+src/app/theme.*           farver fra Omarchy-temaet, lyst eller mørkt (idé fra Omacut)
 src/app/waveformitem.*    tegner den synlige del af waveformen
 src/qml/                  brugerfladen (Qt Quick, Material)
 src/cli.cpp               kommandolinjen

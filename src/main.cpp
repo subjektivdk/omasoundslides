@@ -6,6 +6,7 @@
 #include "core/keybindings.h"
 #include "cli.h"
 
+#include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QIcon>
@@ -46,6 +47,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("project"), controller.project());
     engine.rootContext()->setContextProperty(QStringLiteral("audioPreview"), controller.audio());
     engine.rootContext()->setContextProperty(QStringLiteral("keys"), &keys);
+    QFile logo(QStringLiteral(":/qml/logo.txt"));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("logoText"), logo.open(QIODevice::ReadOnly) ? QString::fromUtf8(logo.readAll()) : QString());
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
     if (engine.rootObjects().isEmpty())
         return 1;

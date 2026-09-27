@@ -15,9 +15,12 @@ ApplicationWindow {
     visible: true
     title: app.projectName + (project.modified ? " •" : "") + " — omasoundslides"
 
-    Material.theme: Material.Dark
+    Material.theme: theme.dark ? Material.Dark : Material.Light
     Material.accent: theme.accent
-    color: "#0e0e10"
+    Material.foreground: theme.text
+    // Popups (drop-downs, menus, tooltips) take this as their background.
+    Material.background: theme.panel
+    color: theme.window
 
     readonly property bool hasImages: project.count > 0
     // Keyboard shortcuts step aside while a text field has focus or a dialog
@@ -411,12 +414,13 @@ ApplicationWindow {
 
         // --- toolbar ---
         RowLayout {
+            id: toolbar
             Layout.fillWidth: true
             spacing: 4
 
             Label {
                 text: app.projectName + (project.modified ? " •" : "")
-                color: "white"
+                color: theme.textStrong
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
                 Layout.rightMargin: 12
@@ -443,7 +447,7 @@ ApplicationWindow {
                 ToolTip.text: "Redo " + project.redoText + " (Ctrl+Shift+Z)"
                 onClicked: win.redo()
             }
-            Item { Layout.fillWidth: true }
+            Item { id: toolbarGap; Layout.fillWidth: true }
             Button { text: "New"; flat: true; focusPolicy: Qt.NoFocus; onClicked: win.newProject() }
             Button { text: "Open"; flat: true; focusPolicy: Qt.NoFocus; onClicked: app.openProjectDialog() }
             Button { text: "Save"; flat: true; focusPolicy: Qt.NoFocus; onClicked: app.save() }
@@ -523,7 +527,7 @@ ApplicationWindow {
                             Label {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: "or drop images and audio into the window"
-                                color: "#8a8a90"
+                                color: theme.textMuted
                                 font.pixelSize: 13
                             }
                         }
@@ -545,7 +549,7 @@ ApplicationWindow {
                         // carry uneven side bearings and sit off-centre.
                         contentItem: Item {
                             id: playIcon
-                            readonly property color ink: playButton.enabled ? "white" : "#6a6a70"
+                            readonly property color ink: playButton.enabled ? theme.textStrong : theme.textFaint
                             Row {
                                 visible: win.playing
                                 anchors.centerIn: parent
@@ -573,14 +577,14 @@ ApplicationWindow {
                             }
                         }
                         focusPolicy: Qt.NoFocus
-                        Material.background: "#2c2c2f"
+                        Material.background: theme.control
                         ToolTip.visible: hovered
                         ToolTip.text: win.playing ? "Pause" : "Play"
                         onClicked: win.togglePlay()
                     }
                     Label {
                         text: Format.time(win.position) + " / " + Format.time(win.endTime)
-                        color: "#d6d6da"
+                        color: theme.text
                         font.pixelSize: 13
                         font.family: "monospace"
                     }
@@ -602,7 +606,7 @@ ApplicationWindow {
                             implicitWidth: audioRow.implicitWidth + 20
                             implicitHeight: 28
                             radius: 14
-                            color: "#1f1f22"
+                            color: theme.raised
                             border.width: chipDrag.active ? 1 : 0
                             border.color: theme.accent
                             z: chipDrag.active ? 10 : 0
@@ -645,20 +649,20 @@ ApplicationWindow {
                                 Label {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: (chip.several ? (chip.index + 1) + "  ♪ " : "♪ ") + modelData.fileName
-                                    color: "#d6d6da"
+                                    color: theme.text
                                     font.pixelSize: 12
                                 }
                                 Label {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: Format.time(modelData.duration)
-                                    color: "#8a8a90"
+                                    color: theme.textMuted
                                     font.pixelSize: 12
                                     font.family: "monospace"
                                 }
                                 Label {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: "✕"
-                                    color: removeHover.hovered ? "white" : "#6a6a70"
+                                    color: removeHover.hovered ? theme.textStrong : theme.textFaint
                                     font.pixelSize: 12
                                     HoverHandler { id: removeHover; cursorShape: Qt.PointingHandCursor }
                                     TapHandler { onTapped: project.removeAudio(index) }
@@ -696,7 +700,7 @@ ApplicationWindow {
             }
 
             Inspector {
-                Layout.preferredWidth: 330
+                Layout.preferredWidth: 350
                 Layout.fillHeight: true
                 item: win.current
             }
@@ -733,19 +737,19 @@ ApplicationWindow {
                 elide: Text.ElideRight
                 font.pixelSize: 13
                 font.family: "monospace"
-                color: win.noticeText !== "" ? theme.accent : "#b8b8bc"
+                color: win.noticeText !== "" ? theme.accent : theme.text
                 text: {
                     if (win.noticeText !== "")
                         return win.noticeText;
                     if (project.problems.length > 0)
-                        return "<font color=\"#ff8a80\">" + project.problems[0] + "</font>";
+                        return "<font color=\"" + theme.danger + "\">" + project.problems[0] + "</font>";
                     if (!win.hasImages)
                         return "";
                     var s = project.count + (project.count === 1 ? " image" : " images")
                           + " · video " + Format.time(project.videoDuration)
                           + " · audio " + Format.time(project.audioDuration);
                     if (parent.mismatch)
-                        s += " · <font color=\"" + Qt.lighter(theme.accent, 1.6) + "\">"
+                        s += " · <font color=\"" + theme.accent + "\">"
                            + (parent.diff > 0 ? "the images run " + Format.seconds(parent.diff) + " s longer"
                                               : "the audio runs " + Format.seconds(-parent.diff) + " s longer")
                            + "</font>";
@@ -754,12 +758,27 @@ ApplicationWindow {
             }
             Label {
                 text: "? Shortcuts"
-                color: helpHover.hovered ? "white" : "#8a8a90"
+                color: helpHover.hovered ? theme.textStrong : theme.textMuted
                 font.pixelSize: 13
                 HoverHandler { id: helpHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: win.helpVisible = !win.helpVisible }
             }
         }
+    }
+
+    // The wordmark, centred on the window at the top. It steps aside when the
+    // window is too narrow for it to fit between the toolbar's buttons.
+    LogoMark {
+        id: logoMark
+        objectName: "logoMark"
+        height: 30
+        width: implicitWidth
+        x: Math.round((win.width - width) / 2)
+        y: 16 + Math.round((toolbar.height - height) / 2)
+        // The toolbar sits at the layout's 16 px margin.
+        readonly property real gapLeft: 16 + toolbarGap.x
+        readonly property real gapRight: gapLeft + toolbarGap.width
+        visible: gapLeft + 16 <= x && x + width + 16 <= gapRight
     }
 
     // ------------------------------------------------------------ drag and drop
@@ -787,7 +806,7 @@ ApplicationWindow {
     // ------------------------------------------------------------ overlays
     component Card: Rectangle {
         radius: 12
-        color: "#1c1c1e"
+        color: theme.panel
     }
 
     component DialogButton: Rectangle {
@@ -799,7 +818,7 @@ ApplicationWindow {
         width: dialogButtonLabel.implicitWidth + 28
         height: 34
         radius: 8
-        color: primary ? theme.accent : "#2c2c2f"
+        color: primary ? theme.accent : theme.control
         border.color: activeFocus ? (primary ? theme.accentForeground : theme.accent) : "transparent"
         border.width: activeFocus ? 2 : 0
         activeFocusOnTab: true
@@ -812,7 +831,7 @@ ApplicationWindow {
             id: dialogButtonLabel
             anchors.centerIn: parent
             text: dialogButton.text
-            color: dialogButton.primary ? theme.accentForeground : "white"
+            color: dialogButton.primary ? theme.accentForeground : theme.textStrong
             font.pixelSize: 13
             font.weight: Font.DemiBold
         }
@@ -843,7 +862,7 @@ ApplicationWindow {
 
                 Label {
                     text: app.exportPhase
-                    color: "white"
+                    color: theme.textStrong
                     font.pixelSize: 16
                     font.weight: Font.DemiBold
                 }
@@ -860,7 +879,7 @@ ApplicationWindow {
                         width: parent.width - cancelButton.width
                         anchors.verticalCenter: parent.verticalCenter
                         text: Math.round(app.exportProgress * 100) + " %"
-                        color: "#d6d6da"
+                        color: theme.text
                         font.pixelSize: 13
                         font.family: "monospace"
                     }
@@ -917,14 +936,14 @@ ApplicationWindow {
 
                 Label {
                     text: confirm.heading
-                    color: "white"
+                    color: theme.textStrong
                     font.pixelSize: 16
                     font.weight: Font.DemiBold
                 }
                 Label {
                     width: parent.width
                     text: confirm.body
-                    color: "#d6d6da"
+                    color: theme.text
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap
                     bottomPadding: 12
@@ -971,7 +990,7 @@ ApplicationWindow {
 
                 Label {
                     text: "Keyboard shortcuts"
-                    color: "white"
+                    color: theme.textStrong
                     font.pixelSize: 16
                     font.weight: Font.DemiBold
                 }
@@ -993,14 +1012,14 @@ ApplicationWindow {
                                 width: 150
                                 horizontalAlignment: Text.AlignRight
                                 text: modelData.keys === "" ? "—" : modelData.keys
-                                color: Qt.lighter(theme.accent, 1.5)
+                                color: (theme.dark ? Qt.lighter(theme.accent, 1.5) : theme.accent)
                                 font.pixelSize: 12
                                 font.family: "monospace"
                                 elide: Text.ElideLeft
                             }
                             Label {
                                 text: modelData.description
-                                color: "#d6d6da"
+                                color: theme.text
                                 font.pixelSize: 12
                             }
                         }
@@ -1023,7 +1042,7 @@ ApplicationWindow {
                         delegate: Label {
                             required property string modelData
                             text: modelData
-                            color: "#b8b8bc"
+                            color: theme.text
                             font.pixelSize: 12
                         }
                     }
@@ -1034,7 +1053,7 @@ ApplicationWindow {
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
                         text: keys.path
-                        color: "#8a8a90"
+                        color: theme.textMuted
                         font.pixelSize: 12
                         font.family: "monospace"
                     }

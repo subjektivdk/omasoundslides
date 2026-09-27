@@ -33,7 +33,7 @@ ComboBox {
                  : Format.transition(transition) + " – " + Format.seconds(duration) + " s"
     font.pixelSize: 13
     opacity: enabled ? 1 : 0.4
-    Material.foreground: overridden ? theme.accent : "#e6e6ea"
+    Material.foreground: overridden ? theme.accent : theme.text
 
     delegate: ItemDelegate {
         required property var modelData
