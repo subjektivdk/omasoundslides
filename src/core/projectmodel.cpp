@@ -258,6 +258,17 @@ void ProjectModel::setFps(int fps)
     record(before, QStringLiteral("Frame rate"));
 }
 
+void ProjectModel::setExportQuality(const QString &name)
+{
+    const auto quality = exportQualityFromName(name);
+    if (!quality || *quality == m_project.output.quality)
+        return;
+    const Snapshot before = snapshot();
+    m_project.output.quality = *quality;
+    Q_EMIT outputChanged();
+    record(before, QStringLiteral("Export quality"));
+}
+
 QVariantList ProjectModel::audio() const
 {
     QVariantList list;
@@ -509,6 +520,19 @@ void ProjectModel::removeAudio(int index)
     Q_EMIT audioChanged();
     edited();
     record(before, QStringLiteral("Remove audio"));
+}
+
+void ProjectModel::moveAudio(int from, int to)
+{
+    const int n = int(m_project.audio.size());
+    if (from < 0 || from >= n || to < 0 || to >= n || from == to)
+        return;
+    const Snapshot before = snapshot();
+    m_project.audio.move(from, to);
+    m_audioDurations.move(from, to);
+    Q_EMIT audioChanged();
+    edited();
+    record(before, QStringLiteral("Reorder audio"));
 }
 
 QVariantList ProjectModel::markers() const

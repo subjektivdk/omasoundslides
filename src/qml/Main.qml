@@ -381,7 +381,7 @@ ApplicationWindow {
     Action { name: "save"; enabled: !win.overlayUp; onActivated: app.save() }
     Action { name: "save_as"; enabled: !win.overlayUp; onActivated: app.saveAs() }
     Action { name: "export"; enabled: !win.overlayUp; onActivated: { win.pause(); app.exportDialog(); } }
-    Action { name: "edit_keybindings"; enabled: !win.overlayUp; onActivated: Qt.openUrlExternally("file://" + keys.path) }
+    Action { name: "edit_keybindings"; enabled: !win.overlayUp; onActivated: app.openInEditor(keys.path) }
     Action { name: "help"; enabled: !win.typing && !confirm.visible; onActivated: win.helpVisible = !win.helpVisible }
     Action { name: "quit"; onActivated: win.requestQuit() }
     Shortcut {
@@ -586,23 +586,65 @@ ApplicationWindow {
                     }
                     Item { Layout.fillWidth: true }
 
-                    // Audio files, played back to back.
+                    // Audio files, played back to back. Drag a chip sideways to
+                    // change the order.
                     Repeater {
+                        id: audioChips
                         model: project.audio
                         delegate: Rectangle {
+                            id: chip
                             required property var modelData
                             required property int index
+                            readonly property bool several: project.audio.length > 1
+                            property real dragX: 0
+
+                            objectName: "audioChip" + index
                             implicitWidth: audioRow.implicitWidth + 20
                             implicitHeight: 28
                             radius: 14
                             color: "#1f1f22"
+                            border.width: chipDrag.active ? 1 : 0
+                            border.color: theme.accent
+                            z: chipDrag.active ? 10 : 0
+                            transform: Translate { x: chipDrag.active ? chip.dragX : 0 }
+
+                            // Where the chip lands: after every other chip whose
+                            // middle is left of its own middle.
+                            function drop() {
+                                var middle = x + width / 2 + dragX;
+                                var to = 0;
+                                for (var i = 0; i < audioChips.count; ++i) {
+                                    var other = audioChips.itemAt(i);
+                                    if (i !== index && other.x + other.width / 2 < middle)
+                                        ++to;
+                                }
+                                dragX = 0;
+                                project.moveAudio(index, to);
+                            }
+
+                            HoverHandler {
+                                id: chipHover
+                                cursorShape: chip.several ? (chipDrag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor
+                            }
+                            DragHandler {
+                                id: chipDrag
+                                target: null
+                                enabled: chip.several
+                                yAxis.enabled: false
+                                onActiveTranslationChanged: if (active) chip.dragX = activeTranslation.x
+                                onActiveChanged: if (!active) chip.drop()
+                            }
+                            ToolTip.visible: chip.several && chipHover.hovered && !chipDrag.active
+                            ToolTip.delay: 600
+                            ToolTip.text: "Drag to change the order the audio plays in"
+
                             Row {
                                 id: audioRow
                                 anchors.centerIn: parent
                                 spacing: 8
                                 Label {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: "♪ " + modelData.fileName
+                                    text: (chip.several ? (chip.index + 1) + "  ♪ " : "♪ ") + modelData.fileName
                                     color: "#d6d6da"
                                     font.pixelSize: 12
                                 }
@@ -1000,7 +1042,7 @@ ApplicationWindow {
                         text: "Edit shortcuts"
                         onClicked: {
                             win.helpVisible = false;
-                            Qt.openUrlExternally("file://" + keys.path);
+                            app.openInEditor(keys.path);
                         }
                     }
                 }

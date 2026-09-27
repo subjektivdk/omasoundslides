@@ -4,9 +4,11 @@
 #include "core/ffmpegcommand.h"
 
 #include <QCollator>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
 #include <QSaveFile>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -168,7 +170,30 @@ void Controller::exportDialog()
         ? QStandardPaths::writableLocation(QStandardPaths::MoviesLocation)
         : QFileInfo(m_projectPath).absolutePath();
     m_picker.exportVideo(QDir(QDir(folder).exists() ? folder : QDir::homePath())
-                             .filePath(fileBaseName() + QStringLiteral(".mp4")));
+                             .filePath(fileBaseName() + QStringLiteral(".mp4")),
+                         m_model.exportQuality());
+}
+
+bool Controller::openInEditor(const QString &path)
+{
+    QStringList launchers;
+    // An explicit choice wins; handy outside Omarchy, and for the tests.
+    const QString chosen = qEnvironmentVariable("OMASOUNDSLIDES_EDITOR");
+    if (!chosen.isEmpty())
+        launchers << chosen;
+    // Omarchy's own: opens the editor picked in Omarchy's defaults and shows
+    // a toast; the plain launcher is the fallback on older Omarchy versions.
+    launchers << QStringLiteral("omarchy-launch-config-editor") << QStringLiteral("omarchy-launch-editor");
+
+    for (const QString &launcher : launchers) {
+        const QString exe = QStandardPaths::findExecutable(launcher);
+        if (!exe.isEmpty() && QProcess::startDetached(exe, {path}))
+            return true;
+    }
+    if (QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
+        return true;
+    Q_EMIT notice(QStringLiteral("Could not open %1 in an editor").arg(path));
+    return false;
 }
 
 void Controller::importMarkersDialog()
@@ -276,7 +301,8 @@ void Controller::addDroppedUrls(const QList<QUrl> &urls, int insertAt)
         Q_EMIT notice(QStringLiteral("Skipped: %1").arg(skipped.join(QStringLiteral(", "))));
 }
 
-void Controller::handlePicked(PortalFilePicker::Purpose purpose, const QList<QUrl> &urls)
+void Controller::handlePicked(PortalFilePicker::Purpose purpose, const QList<QUrl> &urls,
+                              const QVariantMap &choices)
 {
     const QStringList paths = localPaths(urls);
     if (paths.isEmpty())
@@ -296,6 +322,9 @@ void Controller::handlePicked(PortalFilePicker::Purpose purpose, const QList<QUr
         m_model.addAudio(naturallySorted(paths));
         break;
     case PortalFilePicker::Purpose::ExportVideo:
+        // The quality picked in the dialog becomes the project's choice.
+        if (choices.contains(QStringLiteral("quality")))
+            m_model.setExportQuality(choices.value(QStringLiteral("quality")).toString());
         exportTo(withSuffix(paths.first(), QStringLiteral("mp4")));
         break;
     case PortalFilePicker::Purpose::ImportMarkers:

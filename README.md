@@ -28,17 +28,18 @@ omasoundslides projekt.json         # åbn et projekt
 - **Markører fra og til Audacity:** "Import labels…" i Project-fanen (eller træk .txt-filen ind i vinduet) læser Audacitys label-fil (*File → Export Other → Export Labels* i Audacity 3 og 4) og erstatter markørerne. Et områdelabel giver en markør ved starten. "Export labels…" skriver markørerne i samme format, så de kan åbnes med *Import Labels* i Audacity. Importen kan fortrydes.
 - **Fortryd/gentag** (Ctrl+Z / Ctrl+Shift+Z) virker for alle ændringer i projektet. Et helt træk eller en række hak med musehjulet fortrydes i ét trin.
 - **↑ / ↓** går til næste / forrige billede.
+- **Flere lydfiler** spilles efter hinanden. Træk lyd-chipsene ved siden af zoom-knapperne for at ændre rækkefølgen (kan fortrydes).
 - **Afspilning** (Space) spiller lyden og viser billederne med overgangene, som de bliver i videoen.
 - **Image-fanen:** varighed, overgang ind og overgangens længde for det valgte billede. Farvede værdier er sat på billedet, grå kommer fra projektet, og ↺ nulstiller til projektets standard.
 - **Project-fanen:** projektets navn (bruges som filnavn), standardværdier, "Fit images to the audio" (Soundslides' auto-spaced), fade ind/ud på lyden, opløsning og billeder pr. sekund.
 - Statuslinjen viser videoens og lydens længde og siger til, når de ikke passer.
-- Eksport (Ctrl+E) renderer til en midlertidig fil, som først får det rigtige navn, når den er færdig.
+- Eksport (Ctrl+E) laver altid MP4 med H.264, som spiller overalt. Kvaliteten vælges i gem-dialogen eller under Video i Project-fanen: **Standard** (CRF 20, ca. 6,4 MB pr. minut i 1080p) eller **High** (CRF 18, lidt skarpere, ca. 20 % større). Valget gemmes i projektet. Eksporten renderer til en midlertidig fil, som først får det rigtige navn, når den er færdig.
 - Space afspiller/pauser altid, undtagen mens du skriver projektets navn. Et klik uden for et felt giver tastaturet tilbage til genvejene.
 - Tryk `?` for alle tastaturgenveje. `Q` afslutter og advarer om ikke-gemte ændringer.
 
 ### Tastaturgenveje
 
-Genvejene ligger i `~/.config/omasoundslides/keybindings.conf`, som oprettes med standardværdierne første gang. Filen genindlæses, så snart du gemmer den (Ctrl+, åbner den).
+Genvejene ligger i `~/.config/omasoundslides/keybindings.conf`, som oprettes med standardværdierne første gang. Filen genindlæses, så snart du gemmer den. Ctrl+, eller "Edit shortcuts" under `?` åbner den i Omarchys standard-editor (uden for Omarchy: `$OMASOUNDSLIDES_EDITOR` eller systemets standardprogram).
 
 ```
 play_pause = Space
@@ -54,7 +55,7 @@ Lyd-preview og waveform caches i `~/.cache/omasoundslides/`.
 
 ```bash
 omasoundslides info   projekt.json [--auto]          # vis tidslinjen, tjek filer
-omasoundslides render projekt.json ud.mp4 [--auto]   # lav videoen
+omasoundslides render projekt.json ud.mp4 [--auto] [--quality standard|high]   # lav videoen
 omasoundslides render projekt.json ud.mp4 --dry-run  # vis ffmpeg-kommandoen
 omasoundslides transitions                           # liste over overgange
 ```
@@ -66,7 +67,7 @@ omasoundslides transitions                           # liste over overgange
 
 ```json
 {
-  "output":   {"width": 1920, "height": 1080, "fps": 30},
+  "output":   {"width": 1920, "height": 1080, "fps": 30, "quality": "standard"},
   "defaults": {"duration": 5.0, "transition": "crossfade", "transition_duration": 1.0},
   "images": [
     "01.jpg",

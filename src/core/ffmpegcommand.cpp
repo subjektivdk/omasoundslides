@@ -134,9 +134,12 @@ QStringList arguments(const RenderJob &job)
     if (!job.audioPaths.isEmpty())
         args << QStringLiteral("-map") << QStringLiteral("[aout]");
 
+    // Measured on a 1080p slideshow: standard VMAF 95.8 at 6.4 MB/min,
+    // high VMAF 96.4 at 7.8 MB/min (see SUGGESTIONS.md).
+    const bool high = job.output.quality == ExportQuality::High;
     args << QStringLiteral("-c:v") << QStringLiteral("libx264")
-         << QStringLiteral("-preset") << QStringLiteral("medium")
-         << QStringLiteral("-crf") << QStringLiteral("20")
+         << QStringLiteral("-preset") << (high ? QStringLiteral("slow") : QStringLiteral("medium"))
+         << QStringLiteral("-crf") << (high ? QStringLiteral("18") : QStringLiteral("20"))
          << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
          << QStringLiteral("-r") << fps;
     if (!job.audioPaths.isEmpty())

@@ -301,6 +301,19 @@ Rectangle {
                         text: "Gives every image the same duration so the show ends with the audio."
                     }
 
+                    // Markers, which Audacity calls labels.
+                    Label {
+                        objectName: "labelsHeading"
+                        text: "Labels"
+                        color: "white"
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
+                        Layout.topMargin: 12
+                    }
+                    Hint {
+                        text: "The markers on the timeline: where the images should change."
+                    }
+
                     Button {
                         objectName: "fitToMarkersButton"
                         Layout.fillWidth: true
@@ -437,6 +450,21 @@ Rectangle {
                             displayText: project.fps
                             onActivated: (i) => project.fps = model[i]
                         }
+
+                        FieldLabel { text: "Quality" }
+                        ComboBox {
+                            objectName: "exportQualityBox"
+                            Layout.preferredWidth: inspector.controlWidth
+                            implicitHeight: 38
+                            font.pixelSize: 13
+                            readonly property var values: ["standard", "high"]
+                            model: ["Standard", "High"]
+                            currentIndex: values.indexOf(project.exportQuality)
+                            onActivated: (i) => project.exportQuality = values[i]
+                        }
+                    }
+                    Hint {
+                        text: "MP4 (H.264), plays everywhere. High is a little sharper and about 20 % larger."
                     }
                 }
             }

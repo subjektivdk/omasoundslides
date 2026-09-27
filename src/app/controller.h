@@ -47,6 +47,10 @@ public:
     Q_INVOKABLE void exportDialog();
     Q_INVOKABLE void importMarkersDialog();
     Q_INVOKABLE void exportMarkersDialog();
+    // Opens a text file (the keybindings) in the user's editor: the one
+    // chosen in Omarchy, else $OMASOUNDSLIDES_EDITOR, else the desktop's
+    // handler for the file.
+    Q_INVOKABLE bool openInEditor(const QString &path);
     // Audacity's label file: import replaces the markers (one undo step).
     bool importMarkers(const QString &path);
     bool exportMarkers(const QString &path);
@@ -73,7 +77,7 @@ Q_SIGNALS:
 private:
     enum class Phase { Idle, Preparing, Rendering };
 
-    void handlePicked(PortalFilePicker::Purpose purpose, const QList<QUrl> &urls);
+    void handlePicked(PortalFilePicker::Purpose purpose, const QList<QUrl> &urls, const QVariantMap &choices);
     void prepared();
     void rendered(bool ok, const QString &error);
     void setPhase(Phase phase);

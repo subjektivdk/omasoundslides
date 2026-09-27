@@ -21,12 +21,15 @@ public:
     void saveProject(const QString &suggestedPath);
     void addImages(const QString &folder);
     void addAudio(const QString &folder);
-    void exportVideo(const QString &suggestedPath);
+    // The save dialog carries a "Quality" drop-down (standard / high),
+    // starting at currentQuality; the choice comes back in `choices`.
+    void exportVideo(const QString &suggestedPath, const QString &currentQuality);
     void importMarkers(const QString &folder);
     void exportMarkers(const QString &suggestedPath);
 
 Q_SIGNALS:
-    void selected(PortalFilePicker::Purpose purpose, const QList<QUrl> &urls);
+    // choices: the dialog's drop-downs, id → chosen option id.
+    void selected(PortalFilePicker::Purpose purpose, const QList<QUrl> &urls, const QVariantMap &choices);
     void failed(const QString &message);
 
 private Q_SLOTS:

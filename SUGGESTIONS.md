@@ -133,3 +133,54 @@ Nedenfor står det mest værdifulde først. "Indsats" er et groft skøn.
 2. **Markører + snapping (2 + 3):** Det er Soundslides' kernefunktion.
 3. **Småting i tidslinjen (4, 5, 6, 7, 8):** Hver er lille og kan tages én ad gangen.
 4. **Tekstspor (9):** Når resten sidder.
+
+---
+
+# Eksportformater (undersøgt 27. september 2026)
+
+I dag eksporterer vi altid **H.264 + AAC i MP4** (libx264, CRF 20, preset medium, 192 kbit/s lyd).
+
+## Måling
+
+Målt på 40 s af testprojektet i 1080p30, med en tabsfri reference. Kvaliteten er målt med **VMAF** (0–100; over ca. 93 kan man ikke se forskel på originalen). Tiden inkluderer læsning af en stor tabsfri referencefil, så tallene kan kun sammenlignes indbyrdes.
+
+| Encoder | Tid | Størrelse | VMAF | Kommentar |
+|---|---|---|---|---|
+| **x264 CRF 20 medium (i dag)** | 18,7 s | 6,4 MB/min | 95,8 | God balance, spiller overalt |
+| x264 CRF 20 `-tune stillimage` | 18,2 s | 9,6 MB/min | 96,5 | 50 % større for næsten ingen gevinst. **Nej** |
+| x264 CRF 23 fast | 15,0 s | 5,0 MB/min | 94,4 | Lille fil, stadig fin kvalitet |
+| x264 CRF 18 slow | 20,1 s | 7,8 MB/min | 96,4 | Høj kvalitet |
+| x265 (HEVC) CRF 24 | 22,4 s | 3,1 MB/min | 94,2 | Halv størrelse. Spiller ikke alle steder (ældre Windows, nogle browsere) |
+| **SVT-AV1 CRF 32 preset 8** | 16,0 s | **4,0 MB/min** | **96,7** | 37 % mindre end i dag og *bedre* kvalitet, lige så hurtig |
+| VP9 CRF 32 (WebM) | 53,3 s | 4,0 MB/min | 94,3 | Tre gange så langsom som AV1 og ikke bedre. **Nej** |
+| H.264 via GPU (VAAPI, Radeon 680M) | 10,7 s | 7,0 MB/min | 93,6 | Hurtigst, men større og ringere |
+| HEVC via GPU (VAAPI) | 10,7 s | 5,7 MB/min | 0,3 | **Fejlagtigt output** på denne driver. **Nej** |
+| ProRes 422 HQ (MOV) | 39,2 s | 1.500 MB/min | 97,1 | Til videre redigering i Resolve/Premiere |
+
+**Konklusioner:**
+- H.264 er det rigtige standardvalg, fordi det spiller alle steder.
+- AV1 giver de mindste filer med den bedste kvalitet. Det kan afspilles af YouTube, Vimeo, alle moderne browsere og nyere telefoner, men ikke af ældre enheder og nogle tv'er.
+- Diasshows er mest stillbilleder, så de fylder lidt i forvejen. En tuning som `stillimage` betaler sig ikke.
+- GPU-kodning sparer ikke meget, fordi eksporten allerede er hurtig (ca. 30 % af realtid), og den giver ringere kvalitet.
+
+## Beslutning (27. september 2026)
+
+**Kun MP4 med H.264**, med kvaliteten **Standard** (CRF 20, medium) eller **High** (CRF 18, slow). Valget ligger i gem-dialogen og i Project-fanen og gemmes i projektet. Det er lavet. AV1, ProRes, opløsning ved eksport og ekstra filer (punkterne nedenfor) er fravalgt for nu.
+
+## Forslag (til senere)
+
+1. **Format- og kvalitetsvalg i eksport-dialogen.** Omarchys filvælger (portalen) understøtter drop-down-menuer i selve gem-dialogen. Det bruger Omacut allerede til "Quality". Valgene huskes i projektfilen (`"export": {"format": …, "quality": …}`).
+   - **Format:**
+     - *MP4 – H.264* (standard, spiller overalt)
+     - *MP4 – AV1* (mindre filer, moderne afspillere)
+     - *MOV – ProRes* (til videoredigering)
+   - **Kvalitet:**
+     - *Lille*: x264 CRF 23 fast / AV1 CRF 36
+     - *Standard*: CRF 20 medium / AV1 CRF 32
+     - *Høj*: CRF 18 slow / AV1 CRF 28
+2. **Opløsningen i eksporten** i stedet for kun i projekt-fanen, fx 1080p, 720p og "som projektet". Det er praktisk til en hurtig lille version til mail eller en preview.
+3. **Ekstra filer ved siden af videoen** (afkrydsning):
+   - **Plakatbillede (JPEG):** første billede, til web-indlejring og thumbnails.
+   - **Lydsporet alene (M4A):** med fades, som det lyder i videoen.
+   - **Undertekster/kapitler (SRT/WebVTT)** fra markørerne. Markørernes tekst mangler dog stadig (se "Tekstspor" ovenfor).
+4. **Ikke med:** VP9/WebM, HEVC og GPU-kodning. Målingerne viser ingen gevinst, eller at de ikke virker på denne maskine.

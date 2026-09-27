@@ -34,6 +34,18 @@ void wheel(QQuickWindow *window, QPointF scenePos, int steps, Qt::KeyboardModifi
     QCoreApplication::sendEvent(window, &event);
 }
 
+// Items made by a Repeater hang in the visual tree only, not the QObject
+// tree that findChild() searches.
+QQuickItem *findItem(QQuickItem *root, const QString &name)
+{
+    if (root->objectName() == name)
+        return root;
+    for (QQuickItem *child : root->childItems())
+        if (QQuickItem *found = findItem(child, name))
+            return found;
+    return nullptr;
+}
+
 QPointF centerOf(QQuickItem *item)
 {
     return item->mapToScene(QPointF(item->width() / 2, item->height() / 2));
@@ -307,6 +319,62 @@ private Q_SLOTS:
         swipe(centerOf(field), 30); // 4 × 30 = one notch
         QTRY_COMPARE(model->durationOf(selected), before + 0.1);
         model->undo();
+    }
+
+    void audioChipsCanBeDraggedIntoOrder()
+    {
+        ProjectModel *model = m_controller.project();
+        const QString second = m_dir.filePath(QStringLiteral("anden.wav"));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "sine=frequency=880:duration=3", second}));
+        model->addAudio({second});
+        const QString first = model->audioPaths().first();
+
+        QQuickItem *chip0 = nullptr;
+        QQuickItem *chip1 = nullptr;
+        QTRY_VERIFY((chip0 = findItem(m_window->contentItem(), QStringLiteral("audioChip0")))
+                    && (chip1 = findItem(m_window->contentItem(), QStringLiteral("audioChip1"))));
+        // Wait for the row to lay the new chip out next to the first.
+        QTRY_VERIFY(chip1->x() >= chip0->x() + chip0->width());
+        // Drag the first chip to the right, past the middle of the second.
+        const QPointF from = centerOf(chip0);
+        const QPointF to(chip1->mapToScene(QPointF(chip1->width() * 0.75, 0)).x(), from.y());
+        QTest::mousePress(m_window, Qt::LeftButton, {}, from.toPoint());
+        for (int step = 1; step <= 10; ++step)
+            QTest::mouseMove(m_window, (from + (to - from) * step / 10.0).toPoint());
+        QTest::mouseRelease(m_window, Qt::LeftButton, {}, to.toPoint());
+        QTRY_COMPARE(model->audioPaths(), (QStringList{second, first}));
+
+        model->undo();
+        QCOMPARE(model->audioPaths(), (QStringList{first, second}));
+        model->undo(); // and the added file
+        QCOMPARE(model->audioPaths(), QStringList{first});
+    }
+
+    void editShortcutsOpensTheFileInTheEditor()
+    {
+        // Stand-in editor: records what it was asked to open.
+        const QString log = m_dir.filePath(QStringLiteral("editor.log"));
+        const QString editor = m_dir.filePath(QStringLiteral("editor.sh"));
+        QFile script(editor);
+        QVERIFY(script.open(QIODevice::WriteOnly));
+        script.write(QStringLiteral("#!/bin/sh\necho \"$1\" > '%1'\n").arg(log).toUtf8());
+        script.close();
+        script.setPermissions(script.permissions() | QFileDevice::ExeOwner);
+        qputenv("OMASOUNDSLIDES_EDITOR", editor.toUtf8());
+
+        QTest::keyClick(m_window, Qt::Key_Comma, Qt::ControlModifier);
+        QTRY_VERIFY(QFileInfo::exists(log));
+        QFile result(log);
+        QVERIFY(result.open(QIODevice::ReadOnly));
+        QCOMPARE(QString::fromUtf8(result.readAll()).trimmed(), m_keys->path());
+        qunsetenv("OMASOUNDSLIDES_EDITOR");
+    }
+
+    void theProjectTabHasALabelsHeading()
+    {
+        auto *heading = m_window->findChild<QQuickItem *>(QStringLiteral("labelsHeading"));
+        QVERIFY(heading);
+        QCOMPARE(heading->property("text").toString(), QStringLiteral("Labels"));
     }
 
     void upAndDownStepThroughImages()

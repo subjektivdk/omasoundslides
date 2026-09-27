@@ -16,10 +16,20 @@ struct Slide {
     std::optional<double> transitionDuration;
 };
 
+// H.264 in MP4 only; the quality trades file size for detail.
+enum class ExportQuality {
+    Standard, // CRF 20, preset medium: about 6.4 MB per minute of 1080p
+    High,     // CRF 18, preset slow:   about 7.8 MB per minute of 1080p
+};
+
+QString exportQualityName(ExportQuality quality);            // "standard", "high"
+std::optional<ExportQuality> exportQualityFromName(const QString &name);
+
 struct OutputSettings {
     int width = 1920;
     int height = 1080;
     int fps = 30;
+    ExportQuality quality = ExportQuality::Standard;
 };
 
 struct Defaults {

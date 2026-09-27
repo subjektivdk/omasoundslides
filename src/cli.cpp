@@ -31,7 +31,8 @@ QTextStream &err()
 const char *Usage =
     "Usage:\n"
     "  omasoundslides [project.json]      (open the window)\n"
-    "  omasoundslides render <project.json> <out.mp4> [--auto] [--overwrite] [--dry-run]\n"
+    "  omasoundslides render <project.json> <out.mp4> [--auto] [--quality standard|high]\n"
+    "                        [--overwrite] [--dry-run]\n"
     "  omasoundslides info <project.json> [--auto]\n"
     "  omasoundslides transitions\n";
 
@@ -68,15 +69,18 @@ void printTimeline(const PreparedJob &p)
           << Qt::endl;
 }
 
+// `quality` overrides the project's own choice when set (--quality).
 std::optional<PreparedJob> loadAndPrepare(const QString &projectPath, const QString &outputPath,
-                                          bool autoSpaced)
+                                          bool autoSpaced, std::optional<ExportQuality> quality = {})
 {
     QString error;
-    const auto project = Project::load(projectPath, &error);
+    auto project = Project::load(projectPath, &error);
     if (!project) {
         err() << "Error: " << error << Qt::endl;
         return std::nullopt;
     }
+    if (quality)
+        project->output.quality = *quality;
     return prepareJob(*project, outputPath, autoSpaced);
 }
 
@@ -91,7 +95,7 @@ int runInfo(const QString &projectPath, bool autoSpaced)
 }
 
 int runRender(QCoreApplication &app, const QString &projectPath, const QString &outputPath,
-              bool autoSpaced, bool overwrite, bool dryRun)
+              bool autoSpaced, bool overwrite, bool dryRun, std::optional<ExportQuality> quality)
 {
     if (!dryRun && QFileInfo::exists(outputPath) && !overwrite) {
         err() << "Error: " << outputPath << " already exists. Use --overwrite to replace it."
@@ -99,7 +103,7 @@ int runRender(QCoreApplication &app, const QString &projectPath, const QString &
         return 1;
     }
 
-    const auto p = loadAndPrepare(projectPath, outputPath, autoSpaced);
+    const auto p = loadAndPrepare(projectPath, outputPath, autoSpaced, quality);
     if (!p)
         return 1;
     printMessages(*p);
@@ -176,7 +180,11 @@ int runCli(int argc, char *argv[])
         QStringLiteral("overwrite"), QStringLiteral("Replace the output file if it exists."));
     const QCommandLineOption dryRunOption(
         QStringLiteral("dry-run"), QStringLiteral("Print the ffmpeg command without running it."));
-    parser.addOptions({autoOption, overwriteOption, dryRunOption});
+    const QCommandLineOption qualityOption(
+        QStringLiteral("quality"),
+        QStringLiteral("H.264 quality: standard (smaller) or high. Default: the project's choice."),
+        QStringLiteral("standard|high"));
+    parser.addOptions({autoOption, overwriteOption, dryRunOption, qualityOption});
     parser.process(app);
 
     const QStringList args = parser.positionalArguments();
@@ -217,6 +225,14 @@ int runCli(int argc, char *argv[])
         err() << Usage;
         return 2;
     }
+    std::optional<ExportQuality> quality;
+    if (parser.isSet(qualityOption)) {
+        quality = exportQualityFromName(parser.value(qualityOption));
+        if (!quality) {
+            err() << "Error: --quality must be standard or high" << Qt::endl;
+            return 2;
+        }
+    }
     return runRender(app, args.at(1), args.at(2), parser.isSet(autoOption),
-                     parser.isSet(overwriteOption), parser.isSet(dryRunOption));
+                     parser.isSet(overwriteOption), parser.isSet(dryRunOption), quality);
 }

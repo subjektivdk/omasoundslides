@@ -25,6 +25,8 @@ class ProjectModel : public QAbstractListModel
     Q_PROPERTY(int outputWidth READ outputWidth NOTIFY outputChanged)
     Q_PROPERTY(int outputHeight READ outputHeight NOTIFY outputChanged)
     Q_PROPERTY(int fps READ fps WRITE setFps NOTIFY outputChanged)
+    // "standard" or "high" (H.264 in MP4 either way)
+    Q_PROPERTY(QString exportQuality READ exportQuality WRITE setExportQuality NOTIFY outputChanged)
     Q_PROPERTY(QVariantList audio READ audio NOTIFY audioChanged)
     Q_PROPERTY(double audioFadeIn READ audioFadeIn WRITE setAudioFadeIn NOTIFY audioFadeChanged)
     Q_PROPERTY(double audioFadeOut READ audioFadeOut WRITE setAudioFadeOut NOTIFY audioFadeChanged)
@@ -90,6 +92,8 @@ public:
     int fps() const { return m_project.output.fps; }
     Q_INVOKABLE void setResolution(int width, int height);
     void setFps(int fps);
+    QString exportQuality() const { return exportQualityName(m_project.output.quality); }
+    void setExportQuality(const QString &name);
 
     QVariantList audio() const;
     double audioFadeIn() const { return m_project.audioFadeIn; }
@@ -137,6 +141,8 @@ public:
 
     Q_INVOKABLE void addAudio(const QStringList &paths);
     Q_INVOKABLE void removeAudio(int index);
+    // The audio files play back to back in list order.
+    Q_INVOKABLE void moveAudio(int from, int to);
 
     // Markers, in the order they were set (not necessarily by time).
     QVariantList markers() const;

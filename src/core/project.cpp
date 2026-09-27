@@ -56,6 +56,21 @@ std::optional<QString> readTransition(const QJsonObject &obj, const QString &whe
 
 }
 
+QString exportQualityName(ExportQuality quality)
+{
+    return quality == ExportQuality::High ? QStringLiteral("high") : QStringLiteral("standard");
+}
+
+std::optional<ExportQuality> exportQualityFromName(const QString &name)
+{
+    const QString key = name.trimmed().toLower();
+    if (key == QLatin1String("standard"))
+        return ExportQuality::Standard;
+    if (key == QLatin1String("high"))
+        return ExportQuality::High;
+    return std::nullopt;
+}
+
 QString Project::resolvePath(const QString &path) const
 {
     if (QDir::isAbsolutePath(path) || baseDir.isEmpty())
@@ -99,6 +114,14 @@ std::optional<Project> Project::fromJson(const QJsonObject &json, QString *error
         || !readPositiveInt(out, "height", &p.output.height, error)
         || !readPositiveInt(out, "fps", &p.output.fps, error))
         return std::nullopt;
+    if (out.contains(QLatin1String("quality"))) {
+        const auto quality = exportQualityFromName(out.value(QLatin1String("quality")).toString());
+        if (!quality) {
+            *error = QStringLiteral("output.quality must be \"standard\" or \"high\"");
+            return std::nullopt;
+        }
+        p.output.quality = *quality;
+    }
     if (p.output.width % 2 || p.output.height % 2) {
         *error = QStringLiteral("output.width and output.height must be even numbers (an H.264 requirement)");
         return std::nullopt;
@@ -186,6 +209,7 @@ QJsonObject Project::toJson() const
              {QStringLiteral("width"), output.width},
              {QStringLiteral("height"), output.height},
              {QStringLiteral("fps"), output.fps},
+             {QStringLiteral("quality"), exportQualityName(output.quality)},
          }},
         {QStringLiteral("defaults"), QJsonObject{
              {QStringLiteral("duration"), defaults.duration},

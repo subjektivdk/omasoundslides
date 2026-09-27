@@ -225,6 +225,36 @@ private Q_SLOTS:
         QVERIFY(!FfmpegCommand::filterGraph(job).contains(QStringLiteral("afade")));
     }
 
+    void exportQualityPicksTheH264Settings()
+    {
+        RenderJob job;
+        job.slides = {slide(3)};
+        job.plan = Timeline::plan(job.slides);
+        job.outputPath = QStringLiteral("/tmp/out.mp4");
+        const QString standard = FfmpegCommand::arguments(job).join(QLatin1Char(' '));
+        QVERIFY(standard.contains(QStringLiteral("-c:v libx264 -preset medium -crf 20")));
+        job.output.quality = ExportQuality::High;
+        const QString high = FfmpegCommand::arguments(job).join(QLatin1Char(' '));
+        QVERIFY(high.contains(QStringLiteral("-c:v libx264 -preset slow -crf 18")));
+        QVERIFY(high.contains(QStringLiteral("-movflags +faststart /tmp/out.mp4")));
+
+        // Stored in the project; anything but standard/high is refused.
+        Project p;
+        p.output.quality = ExportQuality::High;
+        QString error;
+        QCOMPARE(Project::fromJson(p.toJson(), &error)->output.quality, ExportQuality::High);
+        QVERIFY(!Project::fromJson(QJsonDocument::fromJson(R"({"output": {"quality": "ultra"}})").object(), &error));
+        QCOMPARE(projectFromJson("{}").output.quality, ExportQuality::Standard);
+
+        ProjectModel model;
+        model.setExportQuality(QStringLiteral("high"));
+        QCOMPARE(model.exportQuality(), QStringLiteral("high"));
+        model.setExportQuality(QStringLiteral("nonsense"));
+        QCOMPARE(model.exportQuality(), QStringLiteral("high"));
+        model.undo();
+        QCOMPARE(model.exportQuality(), QStringLiteral("standard"));
+    }
+
     void singleImageNeedsNoTransitions()
     {
         RenderJob job;
@@ -519,6 +549,20 @@ private Q_SLOTS:
         QCOMPARE(model.audioGainAt(10), 1.0);
         QVERIFY(qAbs(model.audioGainAt(model.audioDuration() - 1) - 0.25) < 0.02);
 
+        // Audio files can be reordered, and undone.
+        const QString second = dir.filePath(QStringLiteral("b.wav"));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "sine=duration=5", second}));
+        model.addAudio({second});
+        const double total = model.audioDuration();
+        model.moveAudio(1, 0);
+        QCOMPARE(model.audioPaths(), (QStringList{second, audio}));
+        QCOMPARE(model.audioDuration(), total);
+        QCOMPARE(model.audio().first().toMap().value("fileName").toString(), QStringLiteral("b.wav"));
+        model.undo();
+        QCOMPARE(model.audioPaths(), (QStringList{audio, second}));
+        model.undo(); // the second file again
+        QCOMPARE(model.audioPaths(), QStringList{audio});
+
         // With a marker for every change, the last image lasts until the audio ends.
         model.addMarker(3);
         model.addMarker(8);
@@ -602,6 +646,7 @@ private Q_SLOTS:
         QCOMPARE(reopened.project()->markers().size(), 2);
         QVERIFY(!reopened.importMarkers(file("show.json"))); // not labels
 
+        reopened.project()->setExportQuality(QStringLiteral("high"));
         QSignalSpy exported(&reopened, &Controller::exportFinished);
         reopened.exportTo(file("ud.mp4"));
         QVERIFY(reopened.exporting());

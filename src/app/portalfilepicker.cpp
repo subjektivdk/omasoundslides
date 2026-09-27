@@ -28,6 +28,22 @@ struct FileFilter {
 };
 using FileFilters = QList<FileFilter>;
 
+// The "choices" option, a drop-down in the dialog:
+// [(id, label, [(option id, option label)], initial option id)].
+struct ChoiceOption {
+    QString id;
+    QString label;
+};
+using ChoiceOptions = QList<ChoiceOption>;
+
+struct Choice {
+    QString id;
+    QString label;
+    ChoiceOptions options;
+    QString initial;
+};
+using Choices = QList<Choice>;
+
 QDBusArgument &operator<<(QDBusArgument &argument, const FilterRule &rule)
 {
     argument.beginStructure();
@@ -60,10 +76,44 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, FileFilter &filte
     return argument;
 }
 
+QDBusArgument &operator<<(QDBusArgument &argument, const ChoiceOption &option)
+{
+    argument.beginStructure();
+    argument << option.id << option.label;
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, ChoiceOption &option)
+{
+    argument.beginStructure();
+    argument >> option.id >> option.label;
+    argument.endStructure();
+    return argument;
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const Choice &choice)
+{
+    argument.beginStructure();
+    argument << choice.id << choice.label << choice.options << choice.initial;
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, Choice &choice)
+{
+    argument.beginStructure();
+    argument >> choice.id >> choice.label >> choice.options >> choice.initial;
+    argument.endStructure();
+    return argument;
+}
+
 }
 
 Q_DECLARE_METATYPE(FilterRule)
 Q_DECLARE_METATYPE(FileFilter)
+Q_DECLARE_METATYPE(ChoiceOption)
+Q_DECLARE_METATYPE(Choice)
 
 namespace {
 
@@ -74,6 +124,10 @@ void registerTypes()
         qDBusRegisterMetaType<FilterRules>();
         qDBusRegisterMetaType<FileFilter>();
         qDBusRegisterMetaType<FileFilters>();
+        qDBusRegisterMetaType<ChoiceOption>();
+        qDBusRegisterMetaType<ChoiceOptions>();
+        qDBusRegisterMetaType<Choice>();
+        qDBusRegisterMetaType<Choices>();
         return true;
     }();
     Q_UNUSED(registered);
@@ -176,10 +230,17 @@ void PortalFilePicker::addAudio(const QString &folder)
             openOptions(QStringLiteral("Add"), folder, true, AudioFilter), Purpose::AddAudio);
 }
 
-void PortalFilePicker::exportVideo(const QString &suggestedPath)
+void PortalFilePicker::exportVideo(const QString &suggestedPath, const QString &currentQuality)
 {
-    request(QStringLiteral("SaveFile"), QStringLiteral("Export Video"),
-            saveOptions(QStringLiteral("Export"), suggestedPath, Mp4Filter), Purpose::ExportVideo);
+    QVariantMap options = saveOptions(QStringLiteral("Export"), suggestedPath, Mp4Filter);
+    const ChoiceOptions qualities = {
+        {QStringLiteral("standard"), QStringLiteral("Standard")},
+        {QStringLiteral("high"), QStringLiteral("High")},
+    };
+    options.insert(QStringLiteral("choices"),
+                   QVariant::fromValue(Choices{{QStringLiteral("quality"), QStringLiteral("Quality"), qualities,
+                                                currentQuality}}));
+    request(QStringLiteral("SaveFile"), QStringLiteral("Export Video"), options, Purpose::ExportVideo);
 }
 
 void PortalFilePicker::importMarkers(const QString &folder)
@@ -272,8 +333,25 @@ void PortalFilePicker::handleResponse(uint response, const QVariantMap &results)
     QList<QUrl> urls;
     for (const QString &uri : results.value(QStringLiteral("uris")).toStringList())
         urls.append(QUrl(uri));
+
+    // The drop-downs come back as [(id, chosen option id)].
+    QVariantMap choices;
+    const QVariant choicesValue = results.value(QStringLiteral("choices"));
+    if (choicesValue.canConvert<QDBusArgument>()) {
+        const QDBusArgument arg = choicesValue.value<QDBusArgument>();
+        arg.beginArray();
+        while (!arg.atEnd()) {
+            QString id;
+            QString value;
+            arg.beginStructure();
+            arg >> id >> value;
+            arg.endStructure();
+            choices.insert(id, value);
+        }
+        arg.endArray();
+    }
     if (!urls.isEmpty())
-        Q_EMIT selected(purpose, urls);
+        Q_EMIT selected(purpose, urls, choices);
 }
 
 void PortalFilePicker::clearPending()
