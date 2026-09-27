@@ -26,8 +26,8 @@ const QList<KeyBindings::Action> &KeyBindings::defaults()
         {QStringLiteral("seek_forward_long"), {QStringLiteral("Shift+Right")}, QStringLiteral("Forward 5 s")},
         {QStringLiteral("seek_back_short"), {QStringLiteral("Alt+Left")}, QStringLiteral("Back 0.2 s")},
         {QStringLiteral("seek_forward_short"), {QStringLiteral("Alt+Right")}, QStringLiteral("Forward 0.2 s")},
-        {QStringLiteral("previous_image"), {QStringLiteral("Up")}, QStringLiteral("Previous image")},
-        {QStringLiteral("next_image"), {QStringLiteral("Down")}, QStringLiteral("Next image")},
+        {QStringLiteral("next_image"), {QStringLiteral("Up")}, QStringLiteral("Next image")},
+        {QStringLiteral("previous_image"), {QStringLiteral("Down")}, QStringLiteral("Previous image")},
         {QStringLiteral("go_to_start"), {QStringLiteral("Home")}, QStringLiteral("Go to start")},
         {QStringLiteral("go_to_end"), {QStringLiteral("End")}, QStringLiteral("Go to end")},
         {QStringLiteral("add_marker"), {QStringLiteral("M")}, QStringLiteral("Add a marker at the playhead")},
@@ -172,7 +172,7 @@ QString KeyBindings::defaultFileText()
                 "\n"
                 "# Seconds per press of duration_longer / duration_shorter\n"
                 "%1 = %2\n"
-                "# Seconds per mouse wheel notch over an image (hold Shift for 5 notches)\n"
+                "# Seconds per mouse wheel notch over a number field (hold Shift for 5 notches)\n"
                 "%3 = %4\n")
                 .arg(DurationStepKey)
                 .arg(DefaultDurationStep)

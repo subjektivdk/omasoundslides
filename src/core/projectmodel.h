@@ -147,6 +147,9 @@ public:
     Q_INVOKABLE bool removeMarkerNear(double seconds, double tolerance);
     Q_INVOKABLE void moveMarker(int index, double seconds);
     Q_INVOKABLE void clearMarkers();
+    // Replaces all markers in one undoable step (sorted, near-duplicates
+    // merged). Returns how many markers there are afterwards.
+    int replaceMarkers(QList<double> seconds, const QString &undoText);
     // The first marker after / last marker before `seconds`, or -1.
     Q_INVOKABLE double markerAfter(double seconds) const;
     Q_INVOKABLE double markerBefore(double seconds) const;

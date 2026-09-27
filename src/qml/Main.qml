@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
+import QtQuick.Shapes
 import QtMultimedia
 import "Format.js" as Format
 
@@ -535,11 +536,42 @@ ApplicationWindow {
                     spacing: 8
 
                     RoundButton {
+                        id: playButton
+                        objectName: "playButton"
                         implicitWidth: 44
                         implicitHeight: 44
-                        text: win.playing ? "❚❚" : "▶"
-                        font.pixelSize: 15
                         enabled: win.endTime > 0
+                        // Drawn rather than typed: text glyphs like ❚❚ and ▶
+                        // carry uneven side bearings and sit off-centre.
+                        contentItem: Item {
+                            id: playIcon
+                            readonly property color ink: playButton.enabled ? "white" : "#6a6a70"
+                            Row {
+                                visible: win.playing
+                                anchors.centerIn: parent
+                                spacing: 4
+                                Rectangle { width: 4; height: 14; radius: 1; color: playIcon.ink }
+                                Rectangle { width: 4; height: 14; radius: 1; color: playIcon.ink }
+                            }
+                            Shape {
+                                visible: !win.playing
+                                width: 13
+                                height: 15
+                                // Centre the triangle by its mass, not its box.
+                                anchors.centerIn: parent
+                                anchors.horizontalCenterOffset: 1.5
+                                preferredRendererType: Shape.CurveRenderer
+                                ShapePath {
+                                    strokeWidth: 0
+                                    strokeColor: "transparent"
+                                    fillColor: playIcon.ink
+                                    startX: 0; startY: 0
+                                    PathLine { x: 13; y: 7.5 }
+                                    PathLine { x: 0; y: 15 }
+                                    PathLine { x: 0; y: 0 }
+                                }
+                            }
+                        }
                         focusPolicy: Qt.NoFocus
                         Material.background: "#2c2c2f"
                         ToolTip.visible: hovered
@@ -598,7 +630,7 @@ ApplicationWindow {
                         font.pixelSize: 16
                         focusPolicy: Qt.NoFocus
                         ToolTip.visible: hovered
-                        ToolTip.text: "Zoom out (Ctrl + scroll)"
+                        ToolTip.text: "Zoom out (scroll on the timeline)"
                         onClicked: timeline.zoom(1 / 1.5, win.position)
                     }
                     ToolButton {
@@ -615,7 +647,7 @@ ApplicationWindow {
                         font.pixelSize: 16
                         focusPolicy: Qt.NoFocus
                         ToolTip.visible: hovered
-                        ToolTip.text: "Zoom in (Ctrl + scroll)"
+                        ToolTip.text: "Zoom in (scroll on the timeline)"
                         onClicked: timeline.zoom(1.5, win.position)
                     }
                 }
@@ -938,8 +970,8 @@ ApplicationWindow {
                     topPadding: 6
                     Repeater {
                         model: [
-                            "Scroll over an image or a number: ±" + Format.seconds(keys.scrollStep) + " s (Shift: ×5)",
-                            "Scroll on the timeline: pan  ·  Ctrl + scroll: zoom",
+                            "Scroll over a number field: ±" + Format.seconds(keys.scrollStep) + " s (Shift: ×5)",
+                            "Scroll on the timeline: zoom  ·  Shift + scroll or swipe sideways: pan",
                             "Click or drag on the ruler or the audio: move the playhead",
                             "Drag an image's right edge: set its duration (snaps; hold Shift to place freely)",
                             "Click a transition in the image track: choose another",

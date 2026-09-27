@@ -2,6 +2,7 @@
 INCLUDEPATH += $$PWD/..
 
 HEADERS += \
+    $$PWD/audacitylabels.h \
     $$PWD/audiopreview.h \
     $$PWD/keybindings.h \
     $$PWD/ffmpegcommand.h \
@@ -14,6 +15,7 @@ HEADERS += \
     $$PWD/transitions.h
 
 SOURCES += \
+    $$PWD/audacitylabels.cpp \
     $$PWD/audiopreview.cpp \
     $$PWD/keybindings.cpp \
     $$PWD/ffmpegcommand.cpp \

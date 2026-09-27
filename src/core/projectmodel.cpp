@@ -575,6 +575,24 @@ void ProjectModel::clearMarkers()
     record(before, QStringLiteral("Clear markers"));
 }
 
+int ProjectModel::replaceMarkers(QList<double> seconds, const QString &undoText)
+{
+    std::sort(seconds.begin(), seconds.end());
+    QList<double> markers;
+    for (double s : seconds) {
+        s = roundMillis(s);
+        if (markers.isEmpty() || s - markers.last() >= MarkerMinGap)
+            markers.append(s);
+    }
+    if (markers == m_project.markers)
+        return int(markers.size());
+    const Snapshot before = snapshot();
+    m_project.markers = markers;
+    Q_EMIT markersChanged();
+    record(before, undoText);
+    return int(markers.size());
+}
+
 double ProjectModel::markerAfter(double seconds) const
 {
     double best = -1;

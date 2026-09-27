@@ -17,7 +17,7 @@ Rectangle {
     color: "#161618"
     radius: 12
 
-    readonly property int controlWidth: 176
+    readonly property int controlWidth: 186
 
     component FieldLabel: Label {
         color: "#b8b8bc"
@@ -37,6 +37,22 @@ Rectangle {
         focusPolicy: Qt.NoFocus
         ToolTip.visible: hovered
         ToolTip.text: "Use the project default"
+    }
+
+    // A slim scroll bar: a quarter of Material's default width.
+    component SlimScrollBar: ScrollBar {
+        id: bar
+        policy: ScrollBar.AsNeeded
+        padding: 0
+        implicitWidth: 4
+        background: Item {}
+        contentItem: Rectangle {
+            implicitWidth: 4
+            radius: 2
+            color: bar.pressed ? theme.accent : "#6a6a70"
+            opacity: bar.size < 1 && (bar.active || bar.hovered) ? 1 : 0.35
+            visible: bar.size < 1
+        }
     }
 
     component Hint: Label {
@@ -68,8 +84,16 @@ Rectangle {
 
             // --- the selected image ---
             ScrollView {
+                id: imagePage
+                // Room for the scroll bar, so it never covers a field.
+                rightPadding: 8
                 contentWidth: availableWidth
                 clip: true
+                ScrollBar.vertical: SlimScrollBar {
+                    parent: imagePage
+                    x: imagePage.width - width
+                    height: imagePage.height
+                }
 
                 ColumnLayout {
                     width: parent.width
@@ -183,8 +207,16 @@ Rectangle {
 
             // --- project defaults and output ---
             ScrollView {
+                id: projectPage
+                // Room for the scroll bar, so it never covers a field.
+                rightPadding: 8
                 contentWidth: availableWidth
                 clip: true
+                ScrollBar.vertical: SlimScrollBar {
+                    parent: projectPage
+                    x: projectPage.width - width
+                    height: projectPage.height
+                }
 
                 ColumnLayout {
                     width: parent.width
@@ -295,6 +327,37 @@ Rectangle {
                             ToolTip.text: "Remove all markers"
                             onClicked: project.clearMarkers()
                         }
+                    }
+
+                    // Round trip with Audacity's label track (File → Export
+                    // Other → Export Labels / Import Labels).
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Import labels…"
+                            flat: true
+                            focusPolicy: Qt.NoFocus
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 400
+                            ToolTip.text: "Replace the markers with labels exported from Audacity (.txt)"
+                            onClicked: app.importMarkersDialog()
+                        }
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Export labels…"
+                            flat: true
+                            enabled: project.markers.length > 0
+                            focusPolicy: Qt.NoFocus
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 400
+                            ToolTip.text: "Save the markers as an Audacity label file (.txt)"
+                            onClicked: app.exportMarkersDialog()
+                        }
+                    }
+                    Hint {
+                        text: "Labels from Audacity become markers; a region label marks its start."
                     }
 
                     Label {

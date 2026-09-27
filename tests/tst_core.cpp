@@ -1,4 +1,5 @@
 #include "app/controller.h"
+#include "core/audacitylabels.h"
 #include "core/audiopreview.h"
 #include "core/ffmpegcommand.h"
 #include "core/keybindings.h"
@@ -411,6 +412,56 @@ private Q_SLOTS:
         QCOMPARE(again->markers, (QList<double>{1.5, 4, 10}));
     }
 
+    void audacityLabelsAreRead()
+    {
+        // As Audacity 3/4 writes them: tab-separated, six decimals, a
+        // spectral line starting with '\', and a second track appended.
+        const QString text = QStringLiteral(
+            "2.150000\t2.150000\tpoint label\r\n"
+            "3.400000\t6.100000\tregion label with spaces\r\n"
+            "\\\t1484.669312\t2969.338523\r\n"
+            "8.000000\t8.000000\t\r\n"
+            "not a time\t1\tbroken\r\n"
+            "\r\n"
+            "9,5\t9,5\tcomma decimals\n"
+            "12.25\tone-sided\n");
+        QStringList warnings;
+        const auto labels = AudacityLabels::parse(text, &warnings);
+        QCOMPARE(labels.size(), 5);
+        QCOMPARE(labels[0].start, 2.15);
+        QCOMPARE(labels[0].title, QStringLiteral("point label"));
+        QCOMPARE(labels[1].start, 3.4);
+        QCOMPARE(labels[1].end, 6.1);
+        QCOMPARE(labels[1].title, QStringLiteral("region label with spaces"));
+        QCOMPARE(labels[2].title, QString());
+        QCOMPARE(labels[3].start, 9.5);
+        QCOMPARE(labels[4].start, 12.25);
+        QCOMPARE(labels[4].end, 12.25);
+        QCOMPARE(labels[4].title, QStringLiteral("one-sided"));
+        QCOMPARE(warnings.size(), 1);
+        QVERIFY(warnings.first().startsWith(QStringLiteral("line 5")));
+    }
+
+    void audacityLabelsAreWritten()
+    {
+        const QString text = AudacityLabels::write({31, 12.4});
+        QCOMPARE(text, QStringLiteral("12.400000\t12.400000\tMarker 1\n31.000000\t31.000000\tMarker 2\n"));
+        const auto back = AudacityLabels::parse(text);
+        QCOMPARE(back.size(), 2);
+        QCOMPARE(back[1].start, 31.0);
+    }
+
+    void importedMarkersReplaceTheOldOnesInOneStep()
+    {
+        ProjectModel model;
+        model.addMarker(1);
+        QCOMPARE(model.replaceMarkers({30, 12.4, 12.41, 5}, QStringLiteral("Import markers")), 3);
+        QCOMPARE(model.markers(), (QVariantList{5.0, 12.4, 30.0}));
+        QCOMPARE(model.undoText(), QStringLiteral("Import markers"));
+        model.undo();
+        QCOMPARE(model.markers(), (QVariantList{1.0}));
+    }
+
     void fitToMarkersPutsEachChangeOnItsMarker()
     {
         ProjectModel model;
@@ -534,6 +585,22 @@ private Q_SLOTS:
         QVERIFY(reopened.openProject(file("show.json")));
         QCOMPARE(reopened.project()->rowCount(), 2);
         QCOMPARE(reopened.project()->outputWidth(), 320);
+
+        // Markers out to an Audacity label file and back; a dropped .txt imports too.
+        reopened.project()->addMarker(1.25);
+        reopened.project()->addMarker(0.5);
+        QVERIFY(reopened.exportMarkers(file("labels.txt")));
+        QFile labels(file("labels.txt"));
+        QVERIFY(labels.open(QIODevice::ReadOnly));
+        QCOMPARE(QString::fromUtf8(labels.readAll()),
+                 QStringLiteral("0.500000\t0.500000\tMarker 1\n1.250000\t1.250000\tMarker 2\n"));
+        reopened.project()->clearMarkers();
+        QVERIFY(reopened.importMarkers(file("labels.txt")));
+        QCOMPARE(reopened.project()->markers(), (QVariantList{0.5, 1.25}));
+        reopened.project()->clearMarkers();
+        reopened.addDroppedUrls({QUrl::fromLocalFile(file("labels.txt"))});
+        QCOMPARE(reopened.project()->markers().size(), 2);
+        QVERIFY(!reopened.importMarkers(file("show.json"))); // not labels
 
         QSignalSpy exported(&reopened, &Controller::exportFinished);
         reopened.exportTo(file("ud.mp4"));

@@ -133,19 +133,18 @@ private Q_SLOTS:
 
     void smoothScrollingAddsUp()
     {
-        // A smooth-scrolling wheel or touchpad: eight events of 15 = one notch.
+        // A smooth-scrolling wheel or touchpad on a number field: eight
+        // events of 15 = one notch.
         ProjectModel *model = m_controller.project();
-        auto *timeline = m_window->findChild<QQuickItem *>(QStringLiteral("timeline"));
-        QVariant result;
-        QVERIFY(QMetaObject::invokeMethod(timeline, "blockAt", Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, 0)));
-        auto *block = result.value<QQuickItem *>();
-        const double before = model->durationOf(0);
+        auto *field = m_window->findChild<QQuickItem *>(QStringLiteral("imageDurationField"));
+        const int selected = m_window->property("selected").toInt();
+        const double before = model->durationOf(selected);
         for (int i = 0; i < 8; ++i) {
-            QWheelEvent event(centerOf(block), m_window->mapToGlobal(centerOf(block)), QPoint(0, 2),
+            QWheelEvent event(centerOf(field), m_window->mapToGlobal(centerOf(field)), QPoint(0, 2),
                               QPoint(0, 15), Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false);
             QCoreApplication::sendEvent(m_window, &event);
         }
-        QTRY_COMPARE(model->durationOf(0), before + 0.1);
+        QTRY_COMPARE(model->durationOf(selected), before + 0.1);
     }
 
     void transitionDropdownShowsSoundslidesChoices()
@@ -171,20 +170,18 @@ private Q_SLOTS:
     void ctrlZUndoesAWheelBurst()
     {
         ProjectModel *model = m_controller.project();
-        auto *timeline = m_window->findChild<QQuickItem *>(QStringLiteral("timeline"));
-        QVariant result;
-        QVERIFY(QMetaObject::invokeMethod(timeline, "blockAt", Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, 1)));
-        auto *block = result.value<QQuickItem *>();
-        const double before = model->durationOf(1);
+        auto *field = m_window->findChild<QQuickItem *>(QStringLiteral("imageDurationField"));
+        const int selected = m_window->property("selected").toInt();
+        const double before = model->durationOf(selected);
         for (int i = 0; i < 3; ++i)
-            wheel(m_window, centerOf(block), 1);
-        QTRY_COMPARE(model->durationOf(1), before + 0.3);
+            wheel(m_window, centerOf(field), 1);
+        QTRY_COMPARE(model->durationOf(selected), before + 0.3);
         QTest::keyClick(m_window, Qt::Key_Z, Qt::ControlModifier);
-        QTRY_COMPARE(model->durationOf(1), before);
+        QTRY_COMPARE(model->durationOf(selected), before);
         QTest::keyClick(m_window, Qt::Key_Z, Qt::ControlModifier | Qt::ShiftModifier);
-        QTRY_COMPARE(model->durationOf(1), before + 0.3);
+        QTRY_COMPARE(model->durationOf(selected), before + 0.3);
         QTest::keyClick(m_window, Qt::Key_Z, Qt::ControlModifier);
-        QTRY_COMPARE(model->durationOf(1), before);
+        QTRY_COMPARE(model->durationOf(selected), before);
     }
 
     void mAddsAMarkerAndEdgesSnapToIt()
@@ -242,7 +239,7 @@ private Q_SLOTS:
         QTRY_COMPARE(m_window->property("position").toDouble(), before + 1);
     }
 
-    void wheelOverAnImageChangesItsDuration()
+    void wheelOverTheTracksZooms()
     {
         ProjectModel *model = m_controller.project();
         auto *timeline = m_window->findChild<QQuickItem *>(QStringLiteral("timeline"));
@@ -250,13 +247,76 @@ private Q_SLOTS:
         QVariant result;
         QVERIFY(QMetaObject::invokeMethod(timeline, "blockAt", Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, 1)));
         auto *block = result.value<QQuickItem *>();
-        QVERIFY(block);
+        const double duration = model->durationOf(1);
+        const double fitted = timeline->property("pps").toDouble();
 
-        const double before = model->durationOf(1);
-        wheel(m_window, centerOf(block), 1);
-        QTRY_COMPARE(model->durationOf(1), before + 0.1);
-        wheel(m_window, centerOf(block), -2, Qt::ShiftModifier);
-        QTRY_COMPARE(model->durationOf(1), before + 0.1 - 1.0);
+        // Over an image: scrolling down zooms in, and the duration stays put.
+        wheel(m_window, centerOf(block), -2);
+        QTRY_VERIFY(timeline->property("pps").toDouble() > fitted * 1.5);
+        QCOMPARE(model->durationOf(1), duration);
+
+        // Shift pans instead.
+        const double viewStart = timeline->property("viewStart").toDouble();
+        wheel(m_window, centerOf(block), -1, Qt::ShiftModifier);
+        QTRY_VERIFY(timeline->property("viewStart").toDouble() > viewStart);
+
+        // Over the audio: scrolling up zooms back out.
+        auto *audio = m_window->findChild<QQuickItem *>(QStringLiteral("fadeInHandle"))->parentItem();
+        wheel(m_window, centerOf(audio), 4);
+        QTRY_COMPARE(timeline->property("pps").toDouble(), fitted);
+        QMetaObject::invokeMethod(timeline, "fit");
+    }
+
+    void touchpadScrollingZoomsAndNudges()
+    {
+        // Wayland reports touchpad scrolling from its own TouchPad device, in
+        // many small steps. Handlers that only accept Mouse ignore it.
+        QPointingDevice touchpad(QStringLiteral("test touchpad"), 4242, QInputDevice::DeviceType::TouchPad,
+                                 QPointingDevice::PointerType::Finger,
+                                 QInputDevice::Capability::Position | QInputDevice::Capability::Scroll
+                                     | QInputDevice::Capability::PixelScroll,
+                                 1, 0);
+        auto swipe = [&](QPointF at, int dy, int dx = 0) {
+            const Qt::ScrollPhase phases[] = {Qt::ScrollBegin, Qt::ScrollUpdate, Qt::ScrollUpdate,
+                                              Qt::ScrollUpdate, Qt::ScrollUpdate, Qt::ScrollEnd};
+            for (Qt::ScrollPhase phase : phases) {
+                const bool moving = phase == Qt::ScrollUpdate;
+                QWheelEvent event(at, m_window->mapToGlobal(at), moving ? QPoint(dx, dy) / 4 : QPoint(),
+                                  moving ? QPoint(dx, dy) : QPoint(), Qt::NoButton, Qt::NoModifier, phase,
+                                  false, Qt::MouseEventNotSynthesized, &touchpad);
+                QCoreApplication::sendEvent(m_window, &event);
+            }
+        };
+
+        auto *timeline = m_window->findChild<QQuickItem *>(QStringLiteral("timeline"));
+        QMetaObject::invokeMethod(timeline, "fit");
+        const double fitted = timeline->property("pps").toDouble();
+        auto *audio = m_window->findChild<QQuickItem *>(QStringLiteral("fadeInHandle"))->parentItem();
+        swipe(centerOf(audio), -60); // 4 × 60 = two notches, downwards: zoom in
+        QTRY_VERIFY(timeline->property("pps").toDouble() > fitted * 1.4);
+
+        const double viewStart = timeline->property("viewStart").toDouble();
+        swipe(centerOf(audio), 0, -60); // sideways: pan
+        QTRY_VERIFY(timeline->property("viewStart").toDouble() > viewStart);
+        QMetaObject::invokeMethod(timeline, "fit");
+
+        ProjectModel *model = m_controller.project();
+        auto *field = m_window->findChild<QQuickItem *>(QStringLiteral("imageDurationField"));
+        const int selected = m_window->property("selected").toInt();
+        const double before = model->durationOf(selected);
+        swipe(centerOf(field), 30); // 4 × 30 = one notch
+        QTRY_COMPARE(model->durationOf(selected), before + 0.1);
+        model->undo();
+    }
+
+    void upAndDownStepThroughImages()
+    {
+        QMetaObject::invokeMethod(m_window, "select", Q_ARG(QVariant, 1));
+        QTest::keyClick(m_window, Qt::Key_Up);
+        QTRY_COMPARE(m_window->property("selected").toInt(), 2);
+        QTest::keyClick(m_window, Qt::Key_Down);
+        QTest::keyClick(m_window, Qt::Key_Down);
+        QTRY_COMPARE(m_window->property("selected").toInt(), 0);
     }
 
     void wheelOverTheDurationFieldChangesIt()

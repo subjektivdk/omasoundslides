@@ -45,12 +45,18 @@ public:
     Q_INVOKABLE void addImagesDialog(int insertAt = -1);
     Q_INVOKABLE void addAudioDialog();
     Q_INVOKABLE void exportDialog();
+    Q_INVOKABLE void importMarkersDialog();
+    Q_INVOKABLE void exportMarkersDialog();
+    // Audacity's label file: import replaces the markers (one undo step).
+    bool importMarkers(const QString &path);
+    bool exportMarkers(const QString &path);
     // Renders the project to path (the dialog ends up here too).
     Q_INVOKABLE void exportTo(const QString &path);
     Q_INVOKABLE void cancelExport();
 
     // Files dropped on the window: images go into the strip at insertAt,
-    // audio is appended, a .json project is opened.
+    // audio is appended, a .txt is read as Audacity labels, a .json project
+    // is opened.
     Q_INVOKABLE void addDroppedUrls(const QList<QUrl> &urls, int insertAt = -1);
 
 Q_SIGNALS:

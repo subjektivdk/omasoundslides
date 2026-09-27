@@ -1,11 +1,13 @@
 #include "controller.h"
 
+#include "core/audacitylabels.h"
 #include "core/ffmpegcommand.h"
 
 #include <QCollator>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QtConcurrent/QtConcurrentRun>
@@ -169,6 +171,68 @@ void Controller::exportDialog()
                              .filePath(fileBaseName() + QStringLiteral(".mp4")));
 }
 
+void Controller::importMarkersDialog()
+{
+    m_picker.importMarkers(mediaFolder());
+}
+
+void Controller::exportMarkersDialog()
+{
+    if (m_model.project().markers.isEmpty()) {
+        Q_EMIT notice(QStringLiteral("There are no markers to export"));
+        return;
+    }
+    m_picker.exportMarkers(QDir(mediaFolder()).filePath(fileBaseName() + QStringLiteral(" markers.txt")));
+}
+
+bool Controller::importMarkers(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        Q_EMIT notice(QStringLiteral("Cannot open %1: %2").arg(QFileInfo(path).fileName(), file.errorString()));
+        return false;
+    }
+    QStringList warnings;
+    const QList<AudacityLabels::Label> labels = AudacityLabels::parse(QString::fromUtf8(file.readAll()), &warnings);
+    if (labels.isEmpty()) {
+        Q_EMIT notice(QStringLiteral("No Audacity labels found in %1").arg(QFileInfo(path).fileName()));
+        return false;
+    }
+    // A label marks where something happens: a region label by its start.
+    QList<double> times;
+    for (const AudacityLabels::Label &label : labels)
+        times.append(label.start);
+    const int count = m_model.replaceMarkers(times, QStringLiteral("Import markers"));
+    QString message = QStringLiteral("Imported %1 %2 from %3")
+                          .arg(count)
+                          .arg(count == 1 ? QStringLiteral("marker") : QStringLiteral("markers"))
+                          .arg(QFileInfo(path).fileName());
+    if (!warnings.isEmpty())
+        message += QStringLiteral(" · skipped %1 unreadable %2")
+                       .arg(warnings.size())
+                       .arg(warnings.size() == 1 ? QStringLiteral("line") : QStringLiteral("lines"));
+    Q_EMIT notice(message);
+    return true;
+}
+
+bool Controller::exportMarkers(const QString &path)
+{
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        Q_EMIT notice(QStringLiteral("Cannot write %1: %2").arg(QFileInfo(path).fileName(), file.errorString()));
+        return false;
+    }
+    file.write(AudacityLabels::write(m_model.project().markers).toUtf8());
+    if (!file.commit()) {
+        Q_EMIT notice(QStringLiteral("Cannot save %1: %2").arg(QFileInfo(path).fileName(), file.errorString()));
+        return false;
+    }
+    Q_EMIT notice(QStringLiteral("Exported %1 markers to %2")
+                      .arg(m_model.project().markers.size())
+                      .arg(QFileInfo(path).fileName()));
+    return true;
+}
+
 void Controller::cancelExport()
 {
     if (m_phase == Phase::Rendering) {
@@ -184,6 +248,7 @@ void Controller::addDroppedUrls(const QList<QUrl> &urls, int insertAt)
     QStringList images;
     QStringList audio;
     QString project;
+    QString labels;
     QStringList skipped;
     for (const QString &path : localPaths(urls)) {
         const QString ext = QFileInfo(path).suffix().toLower();
@@ -193,6 +258,8 @@ void Controller::addDroppedUrls(const QList<QUrl> &urls, int insertAt)
             audio << path;
         else if (ext == QLatin1String("json"))
             project = path;
+        else if (ext == QLatin1String("txt"))
+            labels = path;
         else
             skipped << QFileInfo(path).fileName();
     }
@@ -203,6 +270,8 @@ void Controller::addDroppedUrls(const QList<QUrl> &urls, int insertAt)
     }
     m_model.addImages(naturallySorted(images), insertAt);
     m_model.addAudio(naturallySorted(audio));
+    if (!labels.isEmpty())
+        importMarkers(labels);
     if (!skipped.isEmpty())
         Q_EMIT notice(QStringLiteral("Skipped: %1").arg(skipped.join(QStringLiteral(", "))));
 }
@@ -228,6 +297,12 @@ void Controller::handlePicked(PortalFilePicker::Purpose purpose, const QList<QUr
         break;
     case PortalFilePicker::Purpose::ExportVideo:
         exportTo(withSuffix(paths.first(), QStringLiteral("mp4")));
+        break;
+    case PortalFilePicker::Purpose::ImportMarkers:
+        importMarkers(paths.first());
+        break;
+    case PortalFilePicker::Purpose::ExportMarkers:
+        exportMarkers(withSuffix(paths.first(), QStringLiteral("txt")));
         break;
     case PortalFilePicker::Purpose::None:
         break;

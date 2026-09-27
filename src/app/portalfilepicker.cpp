@@ -142,6 +142,7 @@ const FileFilter AudioFilter = globFilter(
      QStringLiteral("aif"), QStringLiteral("ogg"), QStringLiteral("aac"), QStringLiteral("flac"),
      QStringLiteral("opus")});
 const FileFilter Mp4Filter = globFilter(QStringLiteral("MP4 video"), {}, {QStringLiteral("mp4")});
+const FileFilter LabelFilter = globFilter(QStringLiteral("Audacity labels"), {}, {QStringLiteral("txt")});
 
 }
 
@@ -179,6 +180,18 @@ void PortalFilePicker::exportVideo(const QString &suggestedPath)
 {
     request(QStringLiteral("SaveFile"), QStringLiteral("Export Video"),
             saveOptions(QStringLiteral("Export"), suggestedPath, Mp4Filter), Purpose::ExportVideo);
+}
+
+void PortalFilePicker::importMarkers(const QString &folder)
+{
+    request(QStringLiteral("OpenFile"), QStringLiteral("Import Markers from Audacity Labels"),
+            openOptions(QStringLiteral("Import"), folder, false, LabelFilter), Purpose::ImportMarkers);
+}
+
+void PortalFilePicker::exportMarkers(const QString &suggestedPath)
+{
+    request(QStringLiteral("SaveFile"), QStringLiteral("Export Markers as Audacity Labels"),
+            saveOptions(QStringLiteral("Export"), suggestedPath, LabelFilter), Purpose::ExportMarkers);
 }
 
 bool PortalFilePicker::connectToRequestPath(const QString &path)

@@ -10,13 +10,13 @@ import "Format.js" as Format
 // markers across both.
 //
 // - Click or drag on the ruler or the audio: move the playhead.
-// - Click an image: select it. Scroll over it, or drag its right edge, to
-//   change its duration; the edge snaps to the playhead, markers, the audio
-//   end and the images before it (hold Shift to place it freely).
+// - Click an image: select it. Drag its right edge to change its duration;
+//   the edge snaps to the playhead, markers, the audio end and the images
+//   before it (hold Shift to place it freely).
 // - Click a transition: choose another one.
 // - Drag the small squares on the audio: fade in / fade out.
 // - Drag a marker's flag to move it, double-click it to remove it.
-// - Scroll to pan, Ctrl + scroll to zoom.
+// - Scroll to zoom around the mouse; Shift + scroll or a sideways swipe pans.
 Rectangle {
     id: tl
 
@@ -36,7 +36,7 @@ Rectangle {
 
     // Shown while an edge is being snapped, in seconds; -1 when not snapping.
     property real snapLine: -1
-    // The duration feedback shown while dragging or scrolling an image.
+    // The duration feedback shown while dragging an image's edge.
     property int feedbackIndex: -1
     property real feedbackFrom: 0
 
@@ -78,8 +78,6 @@ Rectangle {
     function xOf(seconds) {
         return (seconds - viewStart) * pps;
     }
-    // Leftover wheel movement between events (see Format.wheelNotches).
-    property real wheelRemainder: 0
     function wheelSteps(event) {
         var d = event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x;
         return d / 120;
@@ -211,13 +209,6 @@ Rectangle {
                     z: index
                     visible: x + width >= 0 && x <= imageTrack.width
 
-                    function nudge(delta) {
-                        if (delta === 0)
-                            return;
-                        tl.showFeedback(index, duration);
-                        project.setDuration(index, Math.max(0.1, duration + delta));
-                    }
-
                     Rectangle {
                         anchors.fill: parent
                         radius: 4
@@ -324,14 +315,6 @@ Rectangle {
                     TapHandler {
                         onTapped: { tl.forceActiveFocus(); tl.imageClicked(block.index); }
                     }
-                    WheelHandler {
-                        acceptedModifiers: Qt.NoModifier
-                        onWheel: (event) => block.nudge(Format.wheelNotches(tl, event) * keys.scrollStep)
-                    }
-                    WheelHandler {
-                        acceptedModifiers: Qt.ShiftModifier
-                        onWheel: (event) => block.nudge(Format.wheelNotches(tl, event) * keys.scrollStep * 5)
-                    }
                 }
             }
 
@@ -386,7 +369,7 @@ Rectangle {
                 }
             }
 
-            // "9.32 s → 10.10 s (+0.78)" while an image is being changed.
+            // "9.32 s → 10.10 s (+0.78)" while an image's edge is being dragged.
             Rectangle {
                 id: feedback
                 readonly property int index: tl.feedbackIndex
@@ -653,15 +636,36 @@ Rectangle {
         onPositionChanged: if (pressed) tl.viewStart = position * tl.length
     }
 
+    function pan(steps) {
+        viewStart -= steps * visibleSeconds * 0.1;
+        clampView();
+    }
+
+    // The wheel zooms around the mouse, on the images and on the audio alike:
+    // scrolling down (towards you) zooms in, up zooms out.
+    // A sideways swipe (touchpad, tilt wheel) or Shift + wheel pans instead.
     WheelHandler {
-        acceptedModifiers: Qt.ControlModifier
-        onWheel: (event) => tl.zoom(Math.pow(1.25, tl.wheelSteps(event)), tl.secondsAt(event.x - area.x))
+        // Touchpads report as their own device type; without this their
+        // scrolling is silently ignored.
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        objectName: "zoomWheel"
+        acceptedModifiers: Qt.NoModifier
+        onWheel: (event) => tl.zoom(Math.pow(1.25, -event.angleDelta.y / 120), tl.secondsAt(event.x - area.x))
+    }
+    // A WheelHandler only sees one direction; sideways gets its own.
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        orientation: Qt.Horizontal
+        onWheel: (event) => tl.pan(event.angleDelta.x / 120)
     }
     WheelHandler {
-        acceptedModifiers: Qt.NoModifier
-        onWheel: (event) => {
-            tl.viewStart -= tl.wheelSteps(event) * tl.visibleSeconds * 0.1;
-            tl.clampView();
-        }
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        acceptedModifiers: Qt.ControlModifier
+        onWheel: (event) => tl.zoom(Math.pow(1.25, -tl.wheelSteps(event)), tl.secondsAt(event.x - area.x))
+    }
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        acceptedModifiers: Qt.ShiftModifier
+        onWheel: (event) => tl.pan(tl.wheelSteps(event))
     }
 }

@@ -13,7 +13,7 @@ class PortalFilePicker : public QObject
     Q_OBJECT
 
 public:
-    enum class Purpose { None, OpenProject, SaveProject, AddImages, AddAudio, ExportVideo };
+    enum class Purpose { None, OpenProject, SaveProject, AddImages, AddAudio, ExportVideo, ImportMarkers, ExportMarkers };
 
     explicit PortalFilePicker(QObject *parent = nullptr);
 
@@ -22,6 +22,8 @@ public:
     void addImages(const QString &folder);
     void addAudio(const QString &folder);
     void exportVideo(const QString &suggestedPath);
+    void importMarkers(const QString &folder);
+    void exportMarkers(const QString &suggestedPath);
 
 Q_SIGNALS:
     void selected(PortalFilePicker::Purpose purpose, const QList<QUrl> &urls);

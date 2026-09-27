@@ -1,6 +1,6 @@
 # Forslag: hvad vi kan lære af Kdenlive
 
-**Status (27. september 2026):** Punkt 1–7 er lavet. Tilbage er 8 (musehjul som i Kdenlive) og 9 (tekstspor).
+**Status (27. september 2026):** Punkt 1–7 er lavet. 8 er lavet på vores egen måde: musehjulet zoomer over sporene, og Shift + hjul ruller. Tilbage er 9 (tekstspor).
 
 Kildekoden er gennemgået fra `invent.kde.org/multimedia/kdenlive` (september 2026), især `src/timeline2/` og `src/undohelper.*`.
 

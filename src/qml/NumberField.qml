@@ -54,10 +54,14 @@ TextField {
 
     // Scroll to adjust, like the images on the timeline. Shift: five steps.
     WheelHandler {
+        // Touchpads report as their own device type; without this their
+        // scrolling is silently ignored.
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         acceptedModifiers: Qt.NoModifier
         onWheel: (event) => field.nudge(Format.wheelNotches(field, event) * keys.scrollStep)
     }
     WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         acceptedModifiers: Qt.ShiftModifier
         onWheel: (event) => field.nudge(Format.wheelNotches(field, event) * keys.scrollStep * 5)
     }
