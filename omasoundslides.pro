@@ -15,7 +15,8 @@ HEADERS += \
     src/app/portalfilepicker.h \
     src/app/theme.h \
     src/app/waveformitem.h \
-    src/cli.h
+    src/cli.h \
+    src/cliedit.h
 
 SOURCES += \
     src/app/controller.cpp \
@@ -23,6 +24,7 @@ SOURCES += \
     src/app/theme.cpp \
     src/app/waveformitem.cpp \
     src/cli.cpp \
+    src/cliedit.cpp \
     src/main.cpp
 
 RESOURCES += src/qml/qml.qrc

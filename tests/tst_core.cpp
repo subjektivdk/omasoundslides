@@ -1,5 +1,6 @@
 #include "app/controller.h"
 #include "app/theme.h"
+#include "cliedit.h"
 #include "core/audacitylabels.h"
 #include "core/audiopreview.h"
 #include "core/ffmpegcommand.h"
@@ -789,6 +790,108 @@ private Q_SLOTS:
         QVERIFY(theme.panel().lightnessF() > theme.window().lightnessF());
         // Missing keys fall back sensibly: bright text = the text itself.
         QCOMPARE(theme.textStrong(), QColor(QStringLiteral("#b9b6a7")));
+    }
+
+    void commandLineEditing()
+    {
+        if (!haveFfmpeg())
+            QSKIP("ffmpeg/ffprobe er ikke installeret");
+        QTemporaryDir dir;
+        auto file = [&](const QString &name) { return dir.filePath(name); };
+        for (const char *name : {"a.png", "b.png", "c.png"})
+            QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "color=c=gray:s=64x48", "-frames:v", "1", file(name)}));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "sine=duration=30", file("lyd.wav")}));
+        QFile labels(file("labels.txt"));
+        QVERIFY(labels.open(QIODevice::WriteOnly));
+        labels.write("6.000000\t6.000000\tone\n15.000000\t18.000000\ttwo\n");
+        labels.close();
+
+        const QString show = file("show.json");
+        CliEdit::Options none;
+        auto run = [&](const QString &command, const QStringList &args, CliEdit::Options options = {}) {
+            return CliEdit::run(command, QStringList{show} + args, options);
+        };
+        auto load = [&] { QString e; return *Project::load(show, &e); };
+
+        CliEdit::Options named;
+        named.name = QStringLiteral("Agent show");
+        QCOMPARE(run(QStringLiteral("new"), {}, named), 0);
+        QCOMPARE(run(QStringLiteral("new"), {}, named), 1); // exists already
+        QCOMPARE(load().name, QStringLiteral("Agent show"));
+
+        QCOMPARE(run(QStringLiteral("add-images"), {file("a.png"), file("c.png")}), 0);
+        CliEdit::Options after1;
+        after1.at = 1;
+        QCOMPARE(run(QStringLiteral("add-images"), {file("b.png")}, after1), 0);
+        QCOMPARE(run(QStringLiteral("add-audio"), {file("lyd.wav")}), 0);
+        QCOMPARE(run(QStringLiteral("add-images"), {file("lyd.wav")}), 1); // not an image
+        Project p = load();
+        QCOMPARE(p.slides.size(), 3);
+        QCOMPARE(p.slides[1].path, QStringLiteral("b.png")); // relative, like Save
+        QCOMPARE(p.audio, QStringList{QStringLiteral("lyd.wav")});
+
+        QCOMPARE(run(QStringLiteral("set"), {"duration=4", "transition=fadeout-slow", "quality=high",
+                                             "resolution=1280x720", "fps=25", "fade-in=1.5", "fade-out=0:02"}), 0);
+        p = load();
+        QCOMPARE(p.defaults.duration, 4.0);
+        QCOMPARE(p.defaults.transition, QStringLiteral("fadeblack"));
+        QCOMPARE(p.defaults.transitionDuration, 2.0);
+        QCOMPARE(p.output.quality, ExportQuality::High);
+        QCOMPARE(p.output.width, 1280);
+        QCOMPARE(p.output.fps, 25);
+        QCOMPARE(p.audioFadeOut, 2.0);
+
+        // A bad value fails and leaves the file alone.
+        const QByteArray before = [&] { QFile f(show); f.open(QIODevice::ReadOnly); return f.readAll(); }();
+        QCOMPARE(run(QStringLiteral("set"), {"duration=3", "transition=wipe"}), 1);
+        QCOMPARE(run(QStringLiteral("set"), {"colour=red"}), 1);
+        QCOMPARE(run(QStringLiteral("set"), {"resolution=1001x720"}), 1);
+        QCOMPARE([&] { QFile f(show); f.open(QIODevice::ReadOnly); return f.readAll(); }(), before);
+
+        QCOMPARE(run(QStringLiteral("set-image"), {"2", "duration=6", "transition=cut"}), 0);
+        QCOMPARE(run(QStringLiteral("set-image"), {"1", "transition=crossfade-fast"}), 1); // first image
+        QCOMPARE(run(QStringLiteral("set-image"), {"7", "duration=2"}), 1);
+        p = load();
+        QCOMPARE(*p.slides[1].duration, 6.0);
+        QCOMPARE(*p.slides[1].transition, QStringLiteral("none"));
+        QCOMPARE(run(QStringLiteral("set-image"), {"2", "duration=default"}), 0);
+        QVERIFY(!load().slides[1].duration);
+
+        QCOMPARE(run(QStringLiteral("markers"), {"add", "5", "0:12.5"}), 0);
+        QCOMPARE(load().markers, (QList<double>{5, 12.5}));
+        QCOMPARE(run(QStringLiteral("markers"), {"remove", "5.2"}), 0);
+        QCOMPARE(run(QStringLiteral("markers"), {"remove", "20"}), 1);
+        QCOMPARE(run(QStringLiteral("markers"), {"import", file("labels.txt")}), 0);
+        QCOMPARE(load().markers, (QList<double>{6, 15}));
+        QCOMPARE(run(QStringLiteral("markers"), {"export", file("out.txt")}), 0);
+        QVERIFY(QFileInfo::exists(file("out.txt")));
+
+        QCOMPARE(run(QStringLiteral("fit"), {"markers"}), 0);
+        QCOMPARE(run(QStringLiteral("fit"), {"sideways"}), 2);
+        {
+            ProjectModel model;
+            model.setProject(load());
+            QCOMPARE(model.startOf(1), 6.0); // image 2 has a cut: it starts on the marker
+            QVERIFY(qAbs(model.videoDuration() - 30) < 0.01);        // last image runs to the audio end
+        }
+        QCOMPARE(run(QStringLiteral("fit"), {"audio"}), 0);
+
+        QCOMPARE(run(QStringLiteral("move-image"), {"3", "1"}), 0);
+        QCOMPARE(load().slides[0].path, QStringLiteral("c.png"));
+        QCOMPARE(run(QStringLiteral("remove-image"), {"2"}), 0);
+        QCOMPARE(load().slides.size(), 2);
+        QCOMPARE(run(QStringLiteral("remove-image"), {}), 2);
+
+        // info --json: everything a script needs in one read.
+        const Project project = load();
+        const QJsonObject info = CliEdit::infoJson(show, project, prepareJob(project.withAbsolutePaths(), {}, false));
+        QCOMPARE(info.value("name").toString(), QStringLiteral("Agent show"));
+        QCOMPARE(info.value("images").toArray().size(), 2);
+        QCOMPARE(info.value("images").toArray().first().toObject().value("number").toInt(), 1);
+        QCOMPARE(info.value("markers").toArray().size(), 2);
+        QCOMPARE(info.value("output").toObject().value("quality").toString(), QStringLiteral("high"));
+        QVERIFY(qAbs(info.value("audio_duration").toDouble() - 30) < 0.1);
+        QVERIFY(info.value("errors").toArray().isEmpty());
     }
 
     void rendersARealVideo()

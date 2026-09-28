@@ -1,4 +1,5 @@
 #include "cli.h"
+#include "cliedit.h"
 #include "core/ffmpegcommand.h"
 #include "core/prepare.h"
 #include "core/project.h"
@@ -8,6 +9,7 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QFileInfo>
+#include <QJsonDocument>
 #include <QStandardPaths>
 #include <QTextStream>
 
@@ -33,7 +35,7 @@ const char *Usage =
     "  omasoundslides [project.json]      (open the window)\n"
     "  omasoundslides render <project.json> <out.mp4> [--auto] [--quality standard|high]\n"
     "                        [--overwrite] [--dry-run]\n"
-    "  omasoundslides info <project.json> [--auto]\n"
+    "  omasoundslides info <project.json> [--auto] [--json]\n"
     "  omasoundslides transitions\n";
 
 void printMessages(const PreparedJob &p)
@@ -84,11 +86,19 @@ std::optional<PreparedJob> loadAndPrepare(const QString &projectPath, const QStr
     return prepareJob(*project, outputPath, autoSpaced);
 }
 
-int runInfo(const QString &projectPath, bool autoSpaced)
+int runInfo(const QString &projectPath, bool autoSpaced, bool json)
 {
     const auto p = loadAndPrepare(projectPath, QString(), autoSpaced);
     if (!p)
         return 1;
+    if (json) {
+        // Everything on stdout, problems included, so a script needs one read.
+        QString error;
+        const auto project = Project::load(projectPath, &error);
+        out() << QJsonDocument(CliEdit::infoJson(projectPath, *project, *p)).toJson(QJsonDocument::Indented);
+        out().flush();
+        return p->ok() ? 0 : 1;
+    }
     printTimeline(*p);
     printMessages(*p);
     return p->ok() ? 0 : 1;
@@ -160,7 +170,7 @@ bool isCliCommand(const char *arg)
 {
     const QByteArray a(arg);
     return a == "render" || a == "info" || a == "transitions" || a == "-h" || a == "--help"
-        || a == "-v" || a == "--version";
+        || a == "-v" || a == "--version" || CliEdit::isCommand(QString::fromLocal8Bit(arg));
 }
 
 int runCli(int argc, char *argv[])
@@ -170,10 +180,12 @@ int runCli(int argc, char *argv[])
     QCoreApplication::setApplicationVersion(QStringLiteral(OMASOUNDSLIDES_VERSION));
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("Pictures + sound → video, like Soundslides."));
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addPositionalArgument(QStringLiteral("command"), QStringLiteral("render, info or transitions"));
+    parser.addPositionalArgument(QStringLiteral("command"),
+                                 QStringLiteral("render, info, transitions, or an edit command (see below)"));
+    parser.setApplicationDescription(QStringLiteral("Pictures + sound → video, like Soundslides.\n\n") + QLatin1String(Usage)
+                                     + CliEdit::usage());
     const QCommandLineOption autoOption(
         QStringLiteral("auto"), QStringLiteral("Spread the audio length evenly across all images."));
     const QCommandLineOption overwriteOption(
@@ -184,7 +196,13 @@ int runCli(int argc, char *argv[])
         QStringLiteral("quality"),
         QStringLiteral("H.264 quality: standard (smaller) or high. Default: the project's choice."),
         QStringLiteral("standard|high"));
-    parser.addOptions({autoOption, overwriteOption, dryRunOption, qualityOption});
+    const QCommandLineOption jsonOption(
+        QStringLiteral("json"), QStringLiteral("info: print the project and its timeline as JSON."));
+    const QCommandLineOption atOption(
+        QStringLiteral("at"), QStringLiteral("add-images: insert after image N (0 = first)."), QStringLiteral("N"));
+    const QCommandLineOption nameOption(
+        QStringLiteral("name"), QStringLiteral("new: the project's name."), QStringLiteral("NAME"));
+    parser.addOptions({autoOption, overwriteOption, dryRunOption, qualityOption, jsonOption, atOption, nameOption});
     parser.process(app);
 
     const QStringList args = parser.positionalArguments();
@@ -200,8 +218,23 @@ int runCli(int argc, char *argv[])
         return 0;
     }
 
+    if (CliEdit::isCommand(command)) {
+        CliEdit::Options options;
+        options.name = parser.value(nameOption);
+        options.overwrite = parser.isSet(overwriteOption);
+        if (parser.isSet(atOption)) {
+            bool ok = false;
+            options.at = parser.value(atOption).toInt(&ok);
+            if (!ok || options.at < 0) {
+                err() << "Error: --at must be an image number (0 = first)" << Qt::endl;
+                return 2;
+            }
+        }
+        return CliEdit::run(command, args.mid(1), options);
+    }
+
     if (command != QLatin1String("render") && command != QLatin1String("info")) {
-        err() << Usage;
+        err() << Usage << CliEdit::usage();
         return 2;
     }
 
@@ -218,7 +251,7 @@ int runCli(int argc, char *argv[])
             err() << Usage;
             return 2;
         }
-        return runInfo(args.at(1), parser.isSet(autoOption));
+        return runInfo(args.at(1), parser.isSet(autoOption), parser.isSet(jsonOption));
     }
 
     if (args.size() != 3) {

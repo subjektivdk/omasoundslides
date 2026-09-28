@@ -73,7 +73,7 @@ Lyd-preview og waveform caches i `~/.cache/omasoundslides/`.
 ## Kommandolinje
 
 ```bash
-omasoundslides info   projekt.json [--auto]          # vis tidslinjen, tjek filer
+omasoundslides info   projekt.json [--auto] [--json] # vis tidslinjen, tjek filer
 omasoundslides render projekt.json ud.mp4 [--auto] [--quality standard|high]   # lav videoen
 omasoundslides render projekt.json ud.mp4 --dry-run  # vis ffmpeg-kommandoen
 omasoundslides transitions                           # liste over overgange
@@ -81,6 +81,30 @@ omasoundslides transitions                           # liste over overgange
 
 - `--auto`: Soundslides' "auto-spaced". Alle billeder får samme varighed, så videoen varer præcis lige så længe som lyden.
 - `--overwrite`: erstat udfilen, hvis den findes.
+- `--json` (til `info`): hele projektet og tidslinjen som JSON: billeder med start, varighed og overgang, lyd, markører, fejl og advarsler.
+
+### Redigering fra kommandolinjen (til scripts og AI-agenter)
+
+Alt, hvad vinduet kan ændre, kan også gøres som en kommando på projektfilen. Kommandoerne bruger de samme regler som vinduet og gemmer filen, som Gem gør (relative stier).
+
+```bash
+omasoundslides new show.json --name "Trav"
+omasoundslides add-images show.json billeder/*.jpg          # --at N: efter billede N
+omasoundslides add-audio show.json interview.mp3
+omasoundslides set show.json transition=crossfade-medium fade-in=2 quality=high
+omasoundslides set-image show.json 3 duration=7 transition=fadeout-slow
+omasoundslides markers show.json add 12.4 0:31 47.25       # eller import labels.txt
+omasoundslides fit show.json markers                        # eller audio
+omasoundslides move-image show.json 4 1
+omasoundslides remove-image show.json 2
+omasoundslides info show.json --json
+```
+
+- **`set`:** `name`, `duration`, `transition`, `fps`, `resolution=BxH`, `quality`, `fade-in`, `fade-out`.
+- **`set-image`:** `duration` og `transition`. Værdien `default` sætter det tilbage til projektets standard.
+- **Overgange** skrives med deres id fra `omasoundslides transitions`, fx `cut`, `crossfade-medium` eller `fadeout-slow`.
+- **Numre og tider:** Billeder nummereres fra 1. Tider er sekunder eller `m:ss`.
+- **Exit-koder:** 0 = gjort, 1 = fejl (filen røres ikke), 2 = forkert brug. Fejl skrives på stderr.
 
 ## Projektfil
 

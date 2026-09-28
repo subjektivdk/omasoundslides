@@ -12,10 +12,12 @@ INCLUDEPATH += ../src
 HEADERS += \
     ../src/app/controller.h \
     ../src/app/portalfilepicker.h \
-    ../src/app/theme.h
+    ../src/app/theme.h \
+    ../src/cliedit.h
 
 SOURCES += \
     ../src/app/controller.cpp \
     ../src/app/portalfilepicker.cpp \
     ../src/app/theme.cpp \
+    ../src/cliedit.cpp \
     tst_core.cpp

@@ -25,13 +25,13 @@ Undersøg og beslut: skal man kunne skrive en prompt til en kodeagent (fx Claude
 **Sådan er det i dag:**
 - ✅ **Projektfilen** er ren, dokumenteret JSON, som en agent kan læse og skrive direkte.
 - ✅ **Kommandolinjen** kan rendere (`render`), vise tidslinjen (`info`) og liste overgangene (`transitions`), og den giver tydelige fejlbeskeder og exit-koder.
-- ❌ **Redigering fra kommandolinjen:** Der er ingen kommandoer til at tilføje billeder, sætte varighed, sætte markører og lignende. En agent må redigere JSON'en selv.
-- ❌ **Maskinlæsbart output:** `info` skriver kun tekst, ikke JSON.
+- ✅ **Redigering fra kommandolinjen:** Alt, hvad vinduet kan ændre, findes som en kommando (se README).
+- ✅ **Maskinlæsbart output:** `info --json`.
 - ❌ **Det kørende vindue** kan ikke styres udefra (ingen D-Bus, socket eller MCP), og det ser ikke ændringer i projektfilen, mens det er åbent.
 
 **Mulige skridt** (i stigende omfang):
-1. **`info --json`:** tidslinje, varigheder, markører og problemer som JSON.
-2. **Redigeringskommandoer på kommandolinjen:** fx `add-images`, `set`, `markers import`, `fit audio|markers`. De virker direkte på projektfilen og kan køres uden vindue.
+1. ✅ **`info --json`:** tidslinje, varigheder, markører og problemer som JSON. *(lavet 28. september 2026)*
+2. ✅ **Redigeringskommandoer på kommandolinjen:** `new`, `add-images`, `add-audio`, `remove-image`, `move-image`, `set`, `set-image`, `markers`, `fit`. De virker direkte på projektfilen og kan køres uden vindue. *(lavet 28. september 2026)*
 3. **Genindlæsning:** Vinduet genindlæser projektfilen, når den ændres udefra, så en agent og brugeren kan arbejde samtidig.
 4. **D-Bus-interface til det kørende vindue** (freedesktop-standarden): afspil, gå til tidspunkt, vælg billede, eksportér.
 5. **MCP-server** (Model Context Protocol, standarden for AI-værktøjer): kan bygges oven på 2 og 4, så agenter får programmets funktioner som værktøjer.
