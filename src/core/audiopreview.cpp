@@ -1,6 +1,7 @@
 #include "audiopreview.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
@@ -58,6 +59,40 @@ AudioPreview::AudioPreview(QObject *parent)
     : QObject(parent)
 {
     connect(&m_watcher, &QFutureWatcher<Result>::finished, this, &AudioPreview::finished);
+    // Tidy the cache in the background; nothing waits for it.
+    const QString dir = cacheDir();
+    (void)QtConcurrent::run([dir] { pruneCache(dir); });
+}
+
+QString AudioPreview::cacheDir()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/audio");
+}
+
+int AudioPreview::pruneCache(const QString &cacheDir, int maxAgeDays, qint64 maxBytes)
+{
+    QDir dir(cacheDir);
+    if (!dir.exists())
+        return 0;
+    // Most recently used first; a file's mtime is renewed each time it's used.
+    QFileInfoList files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Time);
+    const QDateTime tooOld = QDateTime::currentDateTime().addDays(-maxAgeDays);
+    const QDateTime staleTemp = QDateTime::currentDateTime().addDays(-1);
+
+    int removed = 0;
+    qint64 kept = 0;
+    for (const QFileInfo &file : files) {
+        // Leftovers of an interrupted build.
+        const bool temporary = file.fileName().endsWith(QLatin1String(".part.flac"));
+        const bool remove = (temporary && file.lastModified() < staleTemp)
+            || (!temporary && (file.lastModified() < tooOld || kept + file.size() > maxBytes));
+        if (remove) {
+            removed += QFile::remove(file.absoluteFilePath());
+            continue;
+        }
+        kept += file.size();
+    }
+    return removed;
 }
 
 QUrl AudioPreview::source() const
@@ -82,8 +117,7 @@ void AudioPreview::rebuild(const QStringList &paths)
         return;
     }
 
-    const QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
-        + QStringLiteral("/audio");
+    const QString cacheDir = AudioPreview::cacheDir();
     QDir().mkpath(cacheDir);
     m_building = true;
     Q_EMIT buildingChanged();
@@ -121,7 +155,12 @@ AudioPreview::Result AudioPreview::build(const QStringList &paths, const QString
         return result;
 
     const QString file = QDir(cacheDir).filePath(cacheKey(paths) + QStringLiteral(".flac"));
-    if (!QFileInfo::exists(file)) {
+    if (QFileInfo::exists(file)) {
+        // Mark it as used, so pruneCache() keeps what is in use.
+        QFile cached(file);
+        if (cached.open(QIODevice::ReadWrite))
+            cached.setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+    } else {
         // Same joining as the export: resample to one format, then concat.
         QStringList args{QStringLiteral("-hide_banner"), QStringLiteral("-nostdin"), QStringLiteral("-y"),
                          QStringLiteral("-v"), QStringLiteral("error")};

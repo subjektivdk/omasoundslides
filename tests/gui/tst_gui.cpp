@@ -380,6 +380,25 @@ private Q_SLOTS:
         QCOMPARE(heading->property("text").toString(), QStringLiteral("Labels"));
     }
 
+    void namesFromOutsideAreNeverMarkup()
+    {
+        ProjectModel *model = m_controller.project();
+        const QString evil = QStringLiteral("<img src=\"https://example.invalid/x.png\"><b>show</b>");
+        model->setName(evil);
+        auto *name = m_window->findChild<QQuickItem *>(QStringLiteral("projectNameLabel"));
+        QVERIFY(name);
+        QCOMPARE(name->property("textFormat").toInt(), 0); // Text.PlainText
+        QVERIFY(name->property("text").toString().startsWith(evil));
+
+        // Messages quoting a name are escaped before the status line styles them.
+        Q_EMIT m_controller.notice(QStringLiteral("Opened ") + evil);
+        auto *status = m_window->findChild<QQuickItem *>(QStringLiteral("statusLabel"));
+        QVERIFY(status);
+        QTRY_VERIFY(status->property("text").toString().contains(QStringLiteral("&lt;img src=")));
+        QVERIFY(!status->property("text").toString().contains(QStringLiteral("<img")));
+        model->undo();
+    }
+
     void upAndDownStepThroughImages()
     {
         QMetaObject::invokeMethod(m_window, "select", Q_ARG(QVariant, 1));

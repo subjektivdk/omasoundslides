@@ -419,7 +419,9 @@ ApplicationWindow {
             spacing: 4
 
             Label {
+                objectName: "projectNameLabel"
                 text: app.projectName + (project.modified ? " •" : "")
+                textFormat: Text.PlainText // the name comes from the project file
                 color: theme.textStrong
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
@@ -649,6 +651,7 @@ ApplicationWindow {
                                 Label {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: (chip.several ? (chip.index + 1) + "  ♪ " : "♪ ") + modelData.fileName
+                                    textFormat: Text.PlainText
                                     color: theme.text
                                     font.pixelSize: 12
                                 }
@@ -731,8 +734,11 @@ ApplicationWindow {
             readonly property bool mismatch: project.audioDuration > 0 && Math.abs(diff) > 0.05
 
             Label {
+                objectName: "statusLabel"
                 Layout.fillWidth: true
                 verticalAlignment: Text.AlignVCenter
+                // Styled for the colors; everything that may quote a file or
+                // project name is escaped first.
                 textFormat: Text.StyledText
                 elide: Text.ElideRight
                 font.pixelSize: 13
@@ -740,9 +746,9 @@ ApplicationWindow {
                 color: win.noticeText !== "" ? theme.accent : theme.text
                 text: {
                     if (win.noticeText !== "")
-                        return win.noticeText;
+                        return Format.escapeHtml(win.noticeText);
                     if (project.problems.length > 0)
-                        return "<font color=\"" + theme.danger + "\">" + project.problems[0] + "</font>";
+                        return "<font color=\"" + theme.danger + "\">" + Format.escapeHtml(project.problems[0]) + "</font>";
                     if (!win.hasImages)
                         return "";
                     var s = project.count + (project.count === 1 ? " image" : " images")
@@ -1012,6 +1018,7 @@ ApplicationWindow {
                                 width: 150
                                 horizontalAlignment: Text.AlignRight
                                 text: modelData.keys === "" ? "—" : modelData.keys
+                                textFormat: Text.PlainText
                                 color: (theme.dark ? Qt.lighter(theme.accent, 1.5) : theme.accent)
                                 font.pixelSize: 12
                                 font.family: "monospace"

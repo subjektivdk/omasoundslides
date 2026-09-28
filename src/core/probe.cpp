@@ -8,20 +8,30 @@
 
 namespace Probe {
 
-MediaInfo inspect(const QString &path)
+QStringList imageInputOptions()
+{
+    return {QStringLiteral("-f"), QStringLiteral("image2"), QStringLiteral("-pattern_type"), QStringLiteral("none")};
+}
+
+MediaInfo inspect(const QString &path, Kind kind)
 {
     MediaInfo info;
-    if (!QFileInfo(path).isFile()) {
+    const QFileInfo file(path);
+    if (!file.isFile()) {
         info.error = QStringLiteral("File not found: %1").arg(path);
         return info;
     }
 
+    QStringList args{QStringLiteral("-v"), QStringLiteral("error"),
+                     QStringLiteral("-show_entries"),
+                     QStringLiteral("format=duration:stream=codec_type,codec_name,width,height"),
+                     QStringLiteral("-of"), QStringLiteral("json")};
+    if (kind == Kind::Image)
+        args << imageInputOptions();
+    args << file.absoluteFilePath();
+
     QProcess ffprobe;
-    ffprobe.start(QStringLiteral("ffprobe"),
-                  {QStringLiteral("-v"), QStringLiteral("error"),
-                   QStringLiteral("-show_entries"),
-                   QStringLiteral("format=duration:stream=codec_type,width,height"),
-                   QStringLiteral("-of"), QStringLiteral("json"), path});
+    ffprobe.start(QStringLiteral("ffprobe"), args);
     if (!ffprobe.waitForStarted()) {
         info.error = QStringLiteral("Could not start ffprobe. Is ffmpeg installed?");
         return info;
@@ -38,10 +48,16 @@ MediaInfo inspect(const QString &path)
     for (const QJsonValue &v : root.value(QLatin1String("streams")).toArray()) {
         const QJsonObject stream = v.toObject();
         const QString type = stream.value(QLatin1String("codec_type")).toString();
-        if (type == QLatin1String("video") && !info.hasVideo) {
+        // A picture has a codec ffmpeg knows and a size. (Read as image2, any
+        // file shows a "video" stream; for audio it is codec "unknown", 0×0.)
+        const int width = stream.value(QLatin1String("width")).toInt();
+        const int height = stream.value(QLatin1String("height")).toInt();
+        const QString codec = stream.value(QLatin1String("codec_name")).toString();
+        if (type == QLatin1String("video") && !info.hasVideo && width > 0 && height > 0
+            && !codec.isEmpty() && codec != QLatin1String("unknown")) {
             info.hasVideo = true;
-            info.width = stream.value(QLatin1String("width")).toInt();
-            info.height = stream.value(QLatin1String("height")).toInt();
+            info.width = width;
+            info.height = height;
         } else if (type == QLatin1String("audio")) {
             info.hasAudio = true;
         }

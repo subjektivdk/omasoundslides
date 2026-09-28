@@ -1,5 +1,6 @@
 #include "cli.h"
 #include "cliedit.h"
+#include "core/exportfile.h"
 #include "core/ffmpegcommand.h"
 #include "core/prepare.h"
 #include "core/project.h"
@@ -8,6 +9,7 @@
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QStandardPaths>
@@ -113,18 +115,27 @@ int runRender(QCoreApplication &app, const QString &projectPath, const QString &
         return 1;
     }
 
-    const auto p = loadAndPrepare(projectPath, outputPath, autoSpaced, quality);
+    auto p = loadAndPrepare(projectPath, outputPath, autoSpaced, quality);
     if (!p)
         return 1;
     printMessages(*p);
     if (!p->ok())
         return 1;
 
-    const QStringList args = FfmpegCommand::arguments(p->job);
     if (dryRun) {
-        out() << FfmpegCommand::shellCommand(args) << Qt::endl;
+        out() << FfmpegCommand::shellCommand(FfmpegCommand::arguments(p->job)) << Qt::endl;
         return 0;
     }
+
+    // ffmpeg writes a temporary file; only a finished video gets the name.
+    QString error;
+    const QString temporary = ExportFile::createTemporary(outputPath, &error);
+    if (temporary.isEmpty()) {
+        err() << "Error: " << error << Qt::endl;
+        return 1;
+    }
+    p->job.outputPath = temporary;
+    const QStringList args = FfmpegCommand::arguments(p->job);
 
     const double total = p->job.plan.total;
     err() << QStringLiteral("Rendering %1 images, %2 s → %3")
@@ -150,11 +161,13 @@ int runRender(QCoreApplication &app, const QString &projectPath, const QString &
     QObject::connect(&renderer, &Renderer::finished, [&](bool ok, const QString &error) {
         if (interactive)
             err() << "\r" << Qt::flush;
-        if (ok) {
+        QString moveError;
+        if (ok && ExportFile::finish(temporary, QFileInfo(outputPath).absoluteFilePath(), &moveError)) {
             err() << "Done: " << outputPath << Qt::endl;
             exitCode = 0;
         } else {
-            err() << "Error: " << error << Qt::endl;
+            QFile::remove(temporary);
+            err() << "Error: " << (ok ? moveError : error) << Qt::endl;
         }
         app.quit();
     });

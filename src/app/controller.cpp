@@ -1,6 +1,7 @@
 #include "controller.h"
 
 #include "core/audacitylabels.h"
+#include "core/exportfile.h"
 #include "core/ffmpegcommand.h"
 
 #include <QCollator>
@@ -264,6 +265,7 @@ void Controller::cancelExport()
         m_renderer.cancel(); // finishes through rendered()
     } else if (m_phase == Phase::Preparing) {
         setPhase(Phase::Idle); // the result is ignored when it arrives
+        QFile::remove(m_exportTmpPath);
         Q_EMIT notice(QStringLiteral("Export cancelled"));
     }
 }
@@ -362,7 +364,12 @@ void Controller::exportTo(const QString &path)
     m_exportPath = target.absoluteFilePath();
     // Render next to the target and rename at the end, so a failed or
     // cancelled export never leaves a half-written file under the real name.
-    m_exportTmpPath = target.dir().filePath(QStringLiteral(".%1.part.mp4").arg(target.completeBaseName()));
+    QString error;
+    m_exportTmpPath = ExportFile::createTemporary(m_exportPath, &error);
+    if (m_exportTmpPath.isEmpty()) {
+        Q_EMIT notice(error);
+        return;
+    }
     m_progress = 0;
     Q_EMIT exportProgressChanged();
     setPhase(Phase::Preparing);
@@ -380,6 +387,7 @@ void Controller::prepared()
     const PreparedJob job = m_prepareWatcher.result();
     if (!job.ok()) {
         setPhase(Phase::Idle);
+        QFile::remove(m_exportTmpPath);
         Q_EMIT notice(job.errors.first());
         return;
     }
@@ -395,9 +403,9 @@ void Controller::rendered(bool ok, const QString &error)
         Q_EMIT notice(error.section(QLatin1Char('\n'), 0, 1).simplified());
         return;
     }
-    QFile::remove(m_exportPath);
-    if (!QFile::rename(m_exportTmpPath, m_exportPath)) {
-        Q_EMIT notice(QStringLiteral("Could not save %1").arg(m_exportPath));
+    QString moveError;
+    if (!ExportFile::finish(m_exportTmpPath, m_exportPath, &moveError)) {
+        Q_EMIT notice(moveError);
         return;
     }
     Q_EMIT notice(QStringLiteral("Exported %1").arg(m_exportPath));

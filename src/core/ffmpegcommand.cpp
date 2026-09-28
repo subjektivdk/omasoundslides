@@ -1,4 +1,7 @@
 #include "ffmpegcommand.h"
+#include "probe.h"
+
+#include <QFileInfo>
 
 #include <QRegularExpression>
 
@@ -122,12 +125,14 @@ QStringList arguments(const RenderJob &job)
 
     const QString fps = QString::number(job.output.fps);
     for (const ResolvedSlide &s : job.slides)
-        args << QStringLiteral("-loop") << QStringLiteral("1")
+        // image2 without patterns: the file itself, even with a % in its name.
+        args << Probe::imageInputOptions()
+             << QStringLiteral("-loop") << QStringLiteral("1")
              << QStringLiteral("-framerate") << fps
              << QStringLiteral("-t") << seconds(s.duration)
-             << QStringLiteral("-i") << s.path;
+             << QStringLiteral("-i") << QFileInfo(s.path).absoluteFilePath();
     for (const QString &audio : job.audioPaths)
-        args << QStringLiteral("-i") << audio;
+        args << QStringLiteral("-i") << QFileInfo(audio).absoluteFilePath();
 
     args << QStringLiteral("-filter_complex") << filterGraph(job)
          << QStringLiteral("-map") << QStringLiteral("[vout]");

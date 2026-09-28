@@ -43,6 +43,13 @@ function transition(name) {
     return transitionLabels[name] !== undefined ? transitionLabels[name] : name;
 }
 
+// Text from outside the program (project and file names, messages that
+// quote them) must never be read as markup: "<img src=…>" in a shared
+// project's name would otherwise make the window fetch a URL.
+function escapeHtml(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 // Turns mouse wheel events into whole notches. Smooth-scrolling mice and
 // touchpads send many small deltas; adding them up keeps every bit counted.
 // `state` is any object that keeps the remainder between events.

@@ -43,6 +43,13 @@ public:
     // The blocking work, public for tests. cacheDir must exist.
     static Result build(const QStringList &paths, const QString &cacheDir);
 
+    // Keeps the cache from growing without end: removes files not used for
+    // maxAgeDays, then the least recently used until the rest fit in
+    // maxBytes. Returns how many files were removed.
+    static int pruneCache(const QString &cacheDir, int maxAgeDays = 30, qint64 maxBytes = qint64(2) << 30);
+
+    static QString cacheDir();
+
 Q_SIGNALS:
     void changed();
     void buildingChanged();

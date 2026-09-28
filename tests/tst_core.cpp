@@ -257,6 +257,21 @@ private Q_SLOTS:
         QCOMPARE(model.exportQuality(), QStringLiteral("standard"));
     }
 
+    void imagesAreReadLiterallyAndByAbsolutePath()
+    {
+        RenderJob job;
+        job.slides = {ResolvedSlide{QStringLiteral("relative/-odd img%03d.png"), 3, QStringLiteral("none"), 0}};
+        job.plan = Timeline::plan(job.slides);
+        job.outputPath = QStringLiteral("/tmp/out.mp4");
+        const QStringList args = FfmpegCommand::arguments(job);
+        const qsizetype input = args.indexOf(QStringLiteral("-i"));
+        QVERIFY(input > 0);
+        // No sequence patterns, and never something that looks like an option.
+        QVERIFY(args.mid(0, input).join(QLatin1Char(' ')).contains(QStringLiteral("-f image2 -pattern_type none")));
+        QVERIFY(args.at(input + 1).startsWith(QLatin1Char('/')));
+        QVERIFY(args.at(input + 1).endsWith(QStringLiteral("relative/-odd img%03d.png")));
+    }
+
     void singleImageNeedsNoTransitions()
     {
         RenderJob job;
@@ -655,7 +670,8 @@ private Q_SLOTS:
         QVERIFY(exported.wait(60000));
         QVERIFY(!reopened.exporting());
         QVERIFY(QFileInfo::exists(file("ud.mp4")));
-        QVERIFY(!QFileInfo::exists(file(".ud.part.mp4")));
+        // No temporary files left behind.
+        QVERIFY(QDir(dir.path()).entryList({QStringLiteral(".omasoundslides-*")}, QDir::Files | QDir::Hidden).isEmpty());
         const MediaInfo info = Probe::inspect(file("ud.mp4"));
         QVERIFY(qAbs(info.duration - 3) < 0.15);
     }
@@ -743,11 +759,42 @@ private Q_SLOTS:
         for (float p : result.peaks)
             QVERIFY(p >= 0 && p <= 1);
 
-        // Cached: the second build reuses the joined file.
-        const QDateTime before = QFileInfo(result.file).lastModified();
+        // Cached: the second build reuses the joined file (and marks it used).
+        QFile old(result.file);
+        QVERIFY(old.open(QIODevice::ReadWrite));
+        old.setFileTime(QDateTime::currentDateTime().addDays(-10), QFileDevice::FileModificationTime);
+        old.close();
+        const qint64 size = QFileInfo(result.file).size();
         const auto again = AudioPreview::build({a, b}, dir.path());
         QCOMPARE(again.file, result.file);
-        QCOMPARE(QFileInfo(again.file).lastModified(), before);
+        QCOMPARE(QFileInfo(again.file).size(), size);
+        QVERIFY(QFileInfo(again.file).lastModified() > QDateTime::currentDateTime().addSecs(-60));
+    }
+
+    void audioCacheIsPruned()
+    {
+        QTemporaryDir dir;
+        auto make = [&](const QString &name, qint64 bytes, int daysOld) {
+            QFile f(dir.filePath(name));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(QByteArray(bytes, 'x'));
+            f.close(); // closing writes the data and would renew the time
+            QVERIFY(f.open(QIODevice::ReadWrite));
+            f.setFileTime(QDateTime::currentDateTime().addDays(-daysOld), QFileDevice::FileModificationTime);
+        };
+        make(QStringLiteral("fresh.flac"), 400, 0);
+        make(QStringLiteral("recent.flac"), 400, 3);
+        make(QStringLiteral("older.flac"), 400, 10);
+        make(QStringLiteral("ancient.flac"), 10, 45);     // unused for over 30 days
+        make(QStringLiteral("x.flac.part.flac"), 10, 2); // an interrupted build
+        make(QStringLiteral("y.flac.part.flac"), 10, 0); // one being built right now
+
+        // 1000 bytes allowed: the two most recently used fit, "older" doesn't.
+        QCOMPARE(AudioPreview::pruneCache(dir.path(), 30, 1000), 3);
+        QStringList left = QDir(dir.path()).entryList(QDir::Files);
+        left.sort();
+        QCOMPARE(left, (QStringList{"fresh.flac", "recent.flac", "y.flac.part.flac"}));
+        QCOMPARE(AudioPreview::pruneCache(dir.path() + QStringLiteral("/missing")), 0);
     }
 
     void themeFollowsOmarchyLightAndDark()
@@ -892,6 +939,48 @@ private Q_SLOTS:
         QCOMPARE(info.value("output").toObject().value("quality").toString(), QStringLiteral("high"));
         QVERIFY(qAbs(info.value("audio_duration").toDouble() - 30) < 0.1);
         QVERIFY(info.value("errors").toArray().isEmpty());
+    }
+
+    void percentAndDashFilenamesAreTheirOwnFiles()
+    {
+        if (!haveFfmpeg())
+            QSKIP("ffmpeg/ffprobe er ikke installeret");
+        QTemporaryDir dir;
+        auto file = [&](const QString &name) { return dir.filePath(name); };
+        // Blue under the tricky name, red under the name ffmpeg would guess.
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "color=c=blue:s=64x48", "-frames:v", "1", file("blue.png")}));
+        QVERIFY(runFfmpeg({"-f", "lavfi", "-i", "color=c=red:s=64x48", "-frames:v", "1", file("img001.png")}));
+        QVERIFY(QFile::copy(file("blue.png"), file("img%03d.png")));
+        QVERIFY(QFile::copy(file("blue.png"), file("-dash.png")));
+
+        const QString previous = QDir::currentPath();
+        QDir::setCurrent(dir.path());
+        CliEdit::Options none;
+        QCOMPARE(CliEdit::run(QStringLiteral("new"), {file("p.json")}, none), 0);
+        // Relative names, one starting with '-': still files, not options.
+        QCOMPARE(CliEdit::run(QStringLiteral("add-images"), {file("p.json"), QStringLiteral("img%03d.png"), QStringLiteral("-dash.png")}, none), 0);
+        QDir::setCurrent(previous);
+
+        QString error;
+        const auto project = Project::load(file("p.json"), &error);
+        QVERIFY(project);
+        PreparedJob prepared = prepareJob(*project, file("out.mp4"), false);
+        QVERIFY2(prepared.ok(), qPrintable(prepared.errors.join('\n')));
+        prepared.job.output = {64, 48, 5, ExportQuality::Standard};
+        Renderer renderer;
+        QSignalSpy finished(&renderer, &Renderer::finished);
+        renderer.start(FfmpegCommand::arguments(prepared.job), prepared.job.plan.total);
+        QVERIFY(finished.wait(60000));
+        QVERIFY(finished.first().at(0).toBool());
+
+        // The first frame is blue: img%03d.png itself, not img001.png.
+        QProcess ffmpeg;
+        ffmpeg.start(QStringLiteral("ffmpeg"), {"-v", "error", "-i", file("out.mp4"), "-frames:v", "1",
+                                                "-vf", "crop=2:2:31:23,format=rgb24", "-f", "rawvideo", "-"});
+        QVERIFY(ffmpeg.waitForFinished(30000));
+        const QByteArray pixel = ffmpeg.readAllStandardOutput().left(3);
+        QCOMPARE(pixel.size(), 3);
+        QVERIFY2(uchar(pixel[2]) > 200 && uchar(pixel[0]) < 50, pixel.toHex().constData());
     }
 
     void rendersARealVideo()

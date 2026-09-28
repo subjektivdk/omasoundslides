@@ -109,6 +109,7 @@ Rectangle {
                         visible: inspector.hasItem
                         Layout.fillWidth: true
                         text: inspector.hasItem ? inspector.item.fileName : ""
+                        textFormat: Text.PlainText
                         color: theme.textMuted
                         font.pixelSize: 12
                         elide: Text.ElideMiddle

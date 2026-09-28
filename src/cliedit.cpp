@@ -125,7 +125,7 @@ int editProject(const QString &path, const std::function<QString(ProjectModel &)
 void requireMedia(const QStringList &paths, bool audio)
 {
     for (const QString &path : paths) {
-        const MediaInfo info = Probe::inspect(path);
+        const MediaInfo info = Probe::inspect(path, audio ? Probe::Kind::Any : Probe::Kind::Image);
         if (!info.ok)
             throw Failure{info.error};
         if (audio ? !info.hasAudio : !info.hasVideo)

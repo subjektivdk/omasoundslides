@@ -18,7 +18,7 @@ PreparedJob prepareJob(const Project &project, const QString &outputPath, bool a
     p.job.slides = resolveSlides(project);
 
     for (int i = 0; i < p.job.slides.size(); ++i) {
-        const MediaInfo info = Probe::inspect(p.job.slides.at(i).path);
+        const MediaInfo info = Probe::inspect(p.job.slides.at(i).path, Probe::Kind::Image);
         if (!info.ok)
             p.errors << QStringLiteral("Image %1: %2").arg(i + 1).arg(info.error);
         else if (!info.hasVideo)
