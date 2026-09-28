@@ -2,3 +2,6 @@
 *.mp4
 /testmateriale/
 /examples/demo/
+/pkgbuild/pkg/
+/pkgbuild/src/
+*.pkg.tar.*

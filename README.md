@@ -32,6 +32,17 @@ examples/make-demo   # et demo-projekt at prøve med (examples/demo/demo.json)
 bin/test    # motor-tests (med rigtige renderinger) + vinduet testet uden skærm
 ```
 
+## Installation
+
+```bash
+bin/install     # bygger en Arch-pakke fra denne mappe og installerer den med pacman
+```
+
+- **Hvad installeres:** Programmet lægges i `/usr/bin/omasoundslides` og kan startes fra Omarchys launcher (Super + Space) eller som `omasoundslides` i terminalen.
+- **Opdatering:** Kør `bin/install` igen. Versionen regnes ud fra git (fx `0.1.r11.g3a13e05`), så hvert nyt commit bliver en opgradering. Projekter, genveje og cache røres ikke.
+- **Afinstallation:** `sudo pacman -R omasoundslides`.
+- **Pakken** bygges med Arch' standard-byggeflag i en ren build-mappe, og testene køres, før den installeres. Opskriften ligger i `pkgbuild/`.
+
 ## Vinduet
 
 ```bash

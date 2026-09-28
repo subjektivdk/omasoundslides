@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
+[Desktop Entry]
+Type=Application
+Name=Omasoundslides
+GenericName=Slideshow Maker
+Comment=Pictures + sound → video, like Soundslides
+Exec=omasoundslides %f
+Icon=omasoundslides
+Terminal=false
+Categories=AudioVideo;Video;AudioVideoEditing;
+Keywords=slideshow;soundslides;photo;audio;video;ffmpeg;
+StartupWMClass=omasoundslides

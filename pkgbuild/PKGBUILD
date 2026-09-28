@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
+# Maintainer: Martin Jensen <10208704+subjektivdk@users.noreply.github.com>
+#
+# A local package built straight from this checkout (bin/install), the way
+# Omacut does it. The version comes from git, so every new commit is an
+# upgrade for pacman: 0.1.r11.g3a13e05 = 11 commits after v0.1.
+
+pkgname=omasoundslides
+pkgver=0.1.r10.g3a13e05
+pkgrel=1
+pkgdesc='Pictures + sound → video, like Soundslides. Qt Quick and ffmpeg, made for Omarchy'
+arch=('x86_64')
+url='https://github.com/subjektivdk/omasoundslides'
+license=('MIT')
+install='omasoundslides.install'
+depends=('ffmpeg' 'qt6-base' 'qt6-declarative' 'qt6-multimedia' 'xdg-desktop-portal' 'hicolor-icon-theme')
+makedepends=('gcc' 'make' 'git')
+options=('!debug')
+source=()
+sha256sums=()
+
+pkgver() {
+  cd "$startdir/.."
+  git describe --long --tags --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+# A separate build folder with Arch's compiler and linker flags (hardening
+# included), instead of the development build in build/.
+build() {
+  mkdir -p "$srcdir/build"
+  cd "$srcdir/build"
+  qmake6 "$startdir/../omasoundslides.pro" CONFIG+=release \
+    QMAKE_CFLAGS_RELEASE="$CFLAGS" QMAKE_CXXFLAGS_RELEASE="$CXXFLAGS" QMAKE_LFLAGS_RELEASE="$LDFLAGS"
+  make
+}
+
+check() {
+  cd "$startdir/.."
+  # The whole test suite, the window driven offscreen. On failure, show why.
+  if ! QT_QPA_PLATFORM=offscreen ./bin/test >"$srcdir/test.log" 2>&1; then
+    grep -E '^(FAIL|Totals)|Loc:|Actual|Expected' "$srcdir/test.log" | tail -30
+    return 1
+  fi
+}
+
+package() {
+  cd "$startdir/.."
+  install -Dm755 "$srcdir/build/omasoundslides" "$pkgdir/usr/bin/omasoundslides"
+  install -Dm644 "$startdir/omasoundslides.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/omasoundslides.svg"
+  install -Dm644 "$startdir/omasoundslides.desktop" "$pkgdir/usr/share/applications/omasoundslides.desktop"
+  # Our license, and Omacut's MIT notice for the code taken from it.
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 THIRD_PARTY_NOTICES.md "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

@@ -1,0 +1,40 @@
+<!--
+SPDX-FileCopyrightText: 2026 Martin Jensen
+
+SPDX-License-Identifier: MIT
+-->
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2c2f"/>
+      <stop offset="1" stop-color="#161618"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE45C"/>
+      <stop offset="1" stop-color="#FFD60A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App background -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+
+  <!-- The slide behind -->
+  <rect x="104" y="92" width="272" height="188" rx="20" fill="#4a4a50" transform="rotate(-8 240 186)"/>
+
+  <!-- The slide in front, with a small landscape -->
+  <rect x="136" y="116" width="272" height="188" rx="20" fill="#ececef"/>
+  <rect x="154" y="134" width="236" height="152" rx="10" fill="#26262a"/>
+  <circle cx="346" cy="176" r="18" fill="url(#accent)"/>
+  <path d="M154 286 L226 206 L270 250 L304 216 L390 286 Z" fill="#6a6a72"/>
+
+  <!-- The sound: an equalizer -->
+  <g fill="url(#accent)">
+    <rect x="125" y="372" width="26" height="60" rx="7"/>
+    <rect x="165" y="340" width="26" height="92" rx="7"/>
+    <rect x="205" y="356" width="26" height="76" rx="7"/>
+    <rect x="245" y="324" width="26" height="108" rx="7"/>
+    <rect x="285" y="348" width="26" height="84" rx="7"/>
+    <rect x="325" y="364" width="26" height="68" rx="7"/>
+    <rect x="365" y="384" width="26" height="48" rx="7"/>
+  </g>
+</svg>

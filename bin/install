@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
+# Builds omasoundslides as an Arch package from this checkout and installs
+# (or upgrades) it with pacman. Asks for your password for the install.
+# Uninstall with: sudo pacman -R omasoundslides
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if ! command -v makepkg >/dev/null 2>&1; then
+  echo "makepkg is required to build the Arch package." >&2
+  exit 1
+fi
+if [[ -n $(git -C "$root" status --porcelain --untracked-files=no) ]]; then
+  echo "Note: uncommitted changes are included, but the version number only" >&2
+  echo "      counts commits. Commit first to get a new version." >&2
+fi
+
+cd "$root/pkgbuild"
+exec makepkg --force --syncdeps --install "$@"
