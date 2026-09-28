@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
 .pragma library
 
 // 83.5 → "1:23.50"

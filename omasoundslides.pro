@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
 TEMPLATE = app
 TARGET = omasoundslides
 VERSION = 0.1.0

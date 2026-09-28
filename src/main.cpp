@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
 // omasoundslides — pictures + sound → video. Qt Quick (QML) UI, ffmpeg renders.
 
 #include "app/controller.h"

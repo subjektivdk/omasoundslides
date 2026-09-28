@@ -1,3 +1,11 @@
+// SPDX-FileCopyrightText: 2026 David Heinemeier Hansson
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
+// The DialogButton and the help and confirm overlays are based on Omacut's
+// Main.qml (https://github.com/omacom-io/omacut).
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material

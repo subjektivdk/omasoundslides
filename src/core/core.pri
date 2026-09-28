@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
 # The rendering engine, shared by the app and the tests.
 INCLUDEPATH += $$PWD/..
 

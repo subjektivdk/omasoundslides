@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
 TEMPLATE = app
 TARGET = tst_core
 

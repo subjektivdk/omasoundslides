@@ -1,4 +1,10 @@
-// Theme following adapted from Omacut (https://github.com/omacom-io/omacut, MIT).
+// SPDX-FileCopyrightText: 2026 David Heinemeier Hansson
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
+// Based on Omacut's theme following (https://github.com/omacom-io/omacut):
+// reading colors.toml and watching the swapped theme link.
 
 #include "theme.h"
 

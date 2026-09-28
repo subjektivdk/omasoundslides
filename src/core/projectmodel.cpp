@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
 #include "projectmodel.h"
 #include "probe.h"
 #include "transitions.h"

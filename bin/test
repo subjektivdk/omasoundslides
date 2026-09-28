@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
 # Build and run the tests: the engine (includes real ffmpeg renders) and the
 # window, driven offscreen with real key presses and mouse wheel events.
 set -euo pipefail

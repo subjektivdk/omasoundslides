@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: 2026 David Heinemeier Hansson
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
+// Based on Omacut's portal file chooser (https://github.com/omacom-io/omacut).
+
 #pragma once
 
 #include <QList>

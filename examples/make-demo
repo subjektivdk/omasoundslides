@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
 # Builds a small demo project from generated pictures and sound, using only
 # omasoundslides' own commands, so it doubles as an example for scripts and
 # AI agents. Nothing personal and nothing downloaded.

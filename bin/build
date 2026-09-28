@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
 # Build omasoundslides into build/. The binary ends up at build/omasoundslides.
 set -euo pipefail
 

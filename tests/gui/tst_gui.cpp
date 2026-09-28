@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
 // Drives the real window offscreen: keys and mouse wheel as a user sends them.
 
 #include "app/controller.h"

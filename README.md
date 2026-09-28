@@ -180,3 +180,7 @@ src/cli.cpp               kommandolinjen
 src/main.cpp              vælger mellem vindue og kommandolinje
 tests/tst_core.cpp        Qt Test
 ```
+
+## Licens
+
+MIT, © 2026 Martin Jensen (se `LICENSE`). Filvælgeren og tema-koden bygger på [Omacut](https://github.com/omacom-io/omacut) (MIT, © David Heinemeier Hansson); se `THIRD_PARTY_NOTICES.md`, som også beskriver Qt og FFmpeg, der bruges som systempakker. Hver fil har sin copyright og licens i en SPDX-header efter [REUSE](https://reuse.software/)-specifikationen.

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material

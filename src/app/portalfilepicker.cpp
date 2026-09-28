@@ -1,4 +1,10 @@
-// Portal file chooser adapted from Omacut (https://github.com/omacom-io/omacut, MIT).
+// SPDX-FileCopyrightText: 2026 David Heinemeier Hansson
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
+// Based on Omacut's portal file chooser (https://github.com/omacom-io/omacut):
+// the D-Bus filter and choice types, and the request/response handling.
 
 #include "portalfilepicker.h"
 

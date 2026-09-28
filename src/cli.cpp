@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
 #include "cli.h"
 #include "cliedit.h"
 #include "core/exportfile.h"

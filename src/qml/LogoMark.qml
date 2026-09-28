@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Martin Jensen
+//
+// SPDX-License-Identifier: MIT
+
 import QtQuick
 
 // The omasoundslides wordmark from logo.txt, drawn block by block instead of
