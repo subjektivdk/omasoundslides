@@ -4,6 +4,7 @@
 
 #include "cli.h"
 #include "cliedit.h"
+#include "version.h"
 #include "core/exportfile.h"
 #include "core/ffmpegcommand.h"
 #include "core/prepare.h"

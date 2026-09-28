@@ -9,7 +9,7 @@
 # upgrade for pacman: 0.1.r11.g3a13e05 = 11 commits after v0.1.
 
 pkgname=omasoundslides
-pkgver=0.1.r10.g3a13e05
+pkgver=0.1.r11.gb3a9956
 pkgrel=1
 pkgdesc='Pictures + sound → video, like Soundslides. Qt Quick and ffmpeg, made for Omarchy'
 arch=('x86_64')
@@ -23,8 +23,7 @@ source=()
 sha256sums=()
 
 pkgver() {
-  cd "$startdir/.."
-  git describe --long --tags --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+  "$startdir/../bin/version"
 }
 
 # A separate build folder with Arch's compiler and linker flags (hardening

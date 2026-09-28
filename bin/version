@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# SPDX-FileCopyrightText: 2026 Martin Jensen
+#
+# SPDX-License-Identifier: MIT
+
+# Prints omasoundslides' version from git, the one place both the package
+# (pkgbuild/PKGBUILD) and the program (--version) take it from:
+#
+#   0.1.r11.gb3a9956        11 commits after the tag v0.1, at commit b3a9956
+#   0.1.r11.gb3a9956.dirty  the same, with uncommitted changes (--dirty)
+#
+# Prints nothing outside a git checkout; the build then uses VERSION from
+# omasoundslides.pro.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+dirty=()
+[[ ${1:-} == --dirty ]] && dirty=(--dirty)
+
+git -C "$root" describe --long --tags --abbrev=7 "${dirty[@]}" 2>/dev/null \
+  | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' || true

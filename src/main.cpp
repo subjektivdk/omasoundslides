@@ -9,6 +9,7 @@
 #include "app/waveformitem.h"
 #include "core/keybindings.h"
 #include "cli.h"
+#include "version.h"
 
 #include <QFile>
 #include <QFileInfo>
