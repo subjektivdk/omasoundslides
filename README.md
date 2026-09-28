@@ -28,6 +28,7 @@ Kræver `qt6-base`, `qt6-declarative`, `qt6-multimedia`, `ffmpeg`, `xdg-desktop-
 
 ```bash
 bin/build   # → build/omasoundslides
+examples/make-demo   # et demo-projekt at prøve med (examples/demo/demo.json)
 bin/test    # motor-tests (med rigtige renderinger) + vinduet testet uden skærm
 ```
 
@@ -128,7 +129,7 @@ omasoundslides info show.json --json
 - Felter, der udelades på et billede, tager værdien fra `defaults`.
 - Lydfiler afspilles efter hinanden. `audio_fade` er valgfri; fade ud slutter, hvor lyden slutter i videoen (lydens egen slutning eller videoens, hvis den kommer først).
 - `name` er valgfri og bruges som filnavn i vinduet.
-- Se `examples/testmateriale.json`.
+- `examples/make-demo` laver et komplet demo-projekt i `examples/demo/` af genererede billeder og en genereret tone, bygget udelukkende med kommandolinje-kommandoerne. Det er både et eksempel på projektfilen og på, hvordan et script eller en AI-agent kan styre programmet.
 
 ## Timing-model
 

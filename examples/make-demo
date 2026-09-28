@@ -1,0 +1,44 @@
+#!/bin/bash
+# Builds a small demo project from generated pictures and sound, using only
+# omasoundslides' own commands, so it doubles as an example for scripts and
+# AI agents. Nothing personal and nothing downloaded.
+#
+#   examples/make-demo [folder]          (default: examples/demo)
+#   omasoundslides examples/demo/demo.json
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+out="${1:-$root/examples/demo}"
+app="${OMASOUNDSLIDES:-$(command -v omasoundslides || echo "$root/build/omasoundslides")}"
+
+mkdir -p "$out"
+cd "$out"
+
+# Six stills from ffmpeg's built-in test sources, and 40 s of gentle tones.
+sources=(
+  "testsrc2=size=1920x1080"
+  "smptehdbars=size=1920x1080"
+  "mandelbrot=size=1920x1080"
+  "gradients=size=1920x1080:seed=7"
+  "cellauto=size=1920x1080:rule=110"
+  "life=size=1920x1080:mold=10:ratio=0.2:seed=3"
+)
+for i in "${!sources[@]}"; do
+  ffmpeg -hide_banner -v error -y -f lavfi -i "${sources[$i]}" -frames:v 1 "picture-$((i + 1)).png"
+done
+ffmpeg -hide_banner -v error -y -f lavfi \
+  -i "sine=frequency=220:beep_factor=2:duration=40,volume=0.3" \
+  -af "afade=t=in:d=1,afade=t=out:st=38:d=2" tone.wav
+
+"$app" new demo.json --name "omasoundslides demo" --overwrite
+"$app" add-images demo.json picture-*.png
+"$app" add-audio demo.json tone.wav
+"$app" set demo.json transition=crossfade-medium fade-in=1 fade-out=2
+"$app" set-image demo.json 4 transition=fadeout-slow
+"$app" markers demo.json add 6 12.5 19 25 32
+"$app" fit demo.json markers
+
+echo
+echo "Demo ready: $out/demo.json"
+echo "  open it:   $app $out/demo.json"
+echo "  render it: $app render $out/demo.json $out/demo.mp4"
